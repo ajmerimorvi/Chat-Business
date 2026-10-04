@@ -1,0 +1,6 @@
+{
+  "name": "Sampark - Chat & Verified Business Discovery",
+  "description": "A chat-first messaging app with universal search across contacts, messages, verified businesses, products, and services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

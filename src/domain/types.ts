@@ -1,0 +1,253 @@
+export type Language = 'en' | 'hi' | 'gu';
+
+export type UserRole = 'customer' | 'business_owner' | 'business_staff' | 'admin';
+
+export interface User {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  avatarUrl?: string;
+  bio?: string;
+  language: Language;
+  role: UserRole;
+  ownedBusinessIds: string[];
+  staffAtBusinessIds: string[];
+  blockedUserIds: string[];
+  blockedBusinessIds: string[];
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  avatarUrl?: string;
+  statusMessage?: string;
+  hasApp: boolean;
+}
+
+export type BusinessType = 'physical_store' | 'manufacturer' | 'office' | 'home_service' | 'online';
+
+export type VerificationLevel = 0 | 1 | 2 | 3;
+
+export interface BusinessHours {
+  days: string; // e.g. "Mon - Sat"
+  openTime: string; // "09:00"
+  closeTime: string; // "20:00"
+  isOpenToday: boolean;
+}
+
+export interface BusinessVerification {
+  level: VerificationLevel;
+  mobileVerified: boolean;
+  mobileVerifiedAt?: string;
+  locationVerified: boolean;
+  locationVerifiedAt?: string;
+  verifiedCoordinates?: {
+    lat: number;
+    lng: number;
+    accuracyMeters: number;
+    address: string;
+  };
+  businessDocVerified: boolean;
+  businessDocType?: 'gstin' | 'shop_act' | 'trade_license';
+  businessDocNumber?: string;
+  businessDocVerifiedAt?: string;
+  lastVerifiedDate: string;
+  reverificationRequired: boolean;
+  riskReason?: string;
+}
+
+export interface Business {
+  id: string;
+  ownerId: string;
+  name: string;
+  category: string;
+  subcategory: string;
+  businessType: BusinessType;
+  description: string;
+  phone: string;
+  email?: string;
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+  coverImageUrl: string;
+  logoUrl: string;
+  rating: number;
+  reviewCount: number;
+  openForChat: boolean;
+  businessHours: BusinessHours;
+  responseMetrics: {
+    avgResponseMinutes: number; // e.g. 15
+    responseRatePct: number;    // e.g. 94%
+    text: string;               // e.g. "Usually replies within 15 min"
+  };
+  verification: BusinessVerification;
+  subscriptionTier: 'free' | 'starter' | 'growth' | 'pro' | 'enterprise';
+  activeConversationsCount: number;
+  maxActiveConversations: number; // 10 for Free, 9999 for Paid
+  isSponsored?: boolean;
+  greetingMessage?: string;
+  awayMessage?: string;
+  quickReplies?: string[];
+  searchKeywords: string[];
+}
+
+export interface Product {
+  id: string;
+  businessId: string;
+  businessName: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  priceOnRequest: boolean;
+  sku?: string;
+  imageUrl: string;
+  available: boolean;
+  location: string;
+  searchKeywords: string[];
+}
+
+export interface Service {
+  id: string;
+  businessId: string;
+  businessName: string;
+  name: string;
+  description: string;
+  category: string;
+  startingPrice: number;
+  serviceArea: string;
+  imageUrl?: string;
+  available: boolean;
+  location: string;
+  searchKeywords: string[];
+}
+
+export type MessageType = 
+  | 'text' 
+  | 'image' 
+  | 'audio' 
+  | 'location' 
+  | 'product_card' 
+  | 'service_card' 
+  | 'inquiry_context';
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  type: MessageType;
+  text?: string;
+  mediaUrl?: string;
+  durationSeconds?: number;
+  location?: {
+    lat: number;
+    lng: number;
+    label: string;
+  };
+  productRef?: {
+    id: string;
+    name: string;
+    price: number;
+    imageUrl: string;
+    priceOnRequest?: boolean;
+  };
+  serviceRef?: {
+    id: string;
+    name: string;
+    startingPrice: number;
+  };
+  inquiryRef?: {
+    id: string;
+    status: InquiryStatus;
+    title: string;
+  };
+  replyToMessage?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'read';
+  deleted?: boolean;
+}
+
+export type InquiryStatus = 
+  | 'new' 
+  | 'contacted' 
+  | 'interested' 
+  | 'quotation_sent' 
+  | 'follow_up' 
+  | 'converted' 
+  | 'not_interested' 
+  | 'closed';
+
+export interface Inquiry {
+  id: string;
+  businessId: string;
+  businessName: string;
+  customerId: string;
+  customerName: string;
+  conversationId: string;
+  entityType: 'product' | 'service' | 'general';
+  entityId?: string;
+  entityTitle: string;
+  requirementNote: string;
+  status: InquiryStatus;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  type: 'direct' | 'business';
+  participantIds: string[];
+  otherParticipant: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    phoneNumber?: string;
+    isBusiness?: boolean;
+    businessId?: string;
+    verification?: BusinessVerification;
+    openForChat?: boolean;
+  };
+  businessId?: string;
+  assignedStaffId?: string;
+  lastMessage: {
+    text: string;
+    senderId: string;
+    timestamp: string;
+    type: MessageType;
+  };
+  unreadCount: number;
+  inquiryId?: string;
+  updatedAt: string;
+}
+
+export interface StaffMember {
+  id: string;
+  businessId: string;
+  userId: string;
+  name: string;
+  role: 'owner' | 'manager' | 'sales' | 'support';
+  phoneNumber: string;
+  avatarUrl?: string;
+  assignedCount: number;
+}
+
+export interface ReportItem {
+  id: string;
+  reporterId: string;
+  targetType: 'user' | 'business' | 'message';
+  targetId: string;
+  targetName: string;
+  reason: string;
+  notes?: string;
+  timestamp: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+}

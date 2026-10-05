@@ -275,4 +275,52 @@ export const firestoreChatService = {
       console.warn('Initial business seeding notice:', e);
     }
   },
+
+  /**
+   * Save product document to Firestore
+   */
+  async saveProduct(product: Product): Promise<void> {
+    try {
+      const prodRef = doc(db, 'products', product.id);
+      await setDoc(prodRef, product, { merge: true });
+    } catch (e) {
+      console.warn('Failed saving product to Firestore:', e);
+    }
+  },
+
+  /**
+   * Save service document to Firestore
+   */
+  async saveService(service: Service): Promise<void> {
+    try {
+      const srvRef = doc(db, 'services', service.id);
+      await setDoc(srvRef, service, { merge: true });
+    } catch (e) {
+      console.warn('Failed saving service to Firestore:', e);
+    }
+  },
+
+  /**
+   * Save safety report document to Firestore
+   */
+  async saveReport(report: any): Promise<void> {
+    try {
+      const repRef = doc(db, 'reports', report.id);
+      await setDoc(repRef, { ...report, createdAt: serverTimestamp() }, { merge: true });
+    } catch (e) {
+      console.warn('Failed saving report to Firestore:', e);
+    }
+  },
+
+  /**
+   * Submit verification audit event to Firestore subcollection
+   */
+  async submitVerificationEvent(businessId: string, event: any): Promise<void> {
+    try {
+      const eventRef = doc(db, 'businesses', businessId, 'verificationEvents', event.id);
+      await setDoc(eventRef, event, { merge: true });
+    } catch (e) {
+      console.warn('Failed submitting verification event to Firestore:', e);
+    }
+  },
 };

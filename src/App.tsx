@@ -75,7 +75,10 @@ export default function App() {
 
   // Real-time Firestore Businesses Sync
   useEffect(() => {
-    firestoreChatService.seedInitialBusinessesIfEmpty(INITIAL_BUSINESSES);
+    // Only seed initial prototype data if explicitly enabled for development
+    if (import.meta.env.VITE_ENABLE_DEMO_DATA === 'true') {
+      firestoreChatService.seedInitialBusinessesIfEmpty(INITIAL_BUSINESSES);
+    }
     const unsub = firestoreChatService.subscribeBusinesses((bizList) => {
       if (bizList && bizList.length > 0) {
         setBusinesses(bizList);
@@ -164,23 +167,6 @@ export default function App() {
     });
     return () => unsub();
   }, [activeConversation?.id]);
-
-  // Auto-subscribe to Firebase Auth state for Google/Gmail logins
-  useEffect(() => {
-    const unsubscribe = subscribeToAuthChanges((fbUser) => {
-      if (fbUser) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          id: fbUser.uid,
-          name: fbUser.displayName || prev.name,
-          email: fbUser.email || undefined,
-          avatarUrl: fbUser.photoURL || prev.avatarUrl,
-          authProvider: 'google',
-        }));
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Listen for native Android PWA install prompt
   useEffect(() => {
@@ -445,23 +431,33 @@ export default function App() {
 
   const handleUpdateInquiryStatus = (inquiryId: string, newStatus: InquiryStatus) => {
     setInquiries((prev) =>
-      prev.map((inq) => (inq.id === inquiryId ? { ...inq, status: newStatus, updatedAt: new Date().toISOString() } : inq))
+      prev.map((inq) => {
+        if (inq.id === inquiryId) {
+          const updated = { ...inq, status: newStatus, updatedAt: new Date().toISOString() };
+          firestoreChatService.saveInquiry(updated).catch(console.warn);
+          return updated;
+        }
+        return inq;
+      })
     );
   };
 
   const handleAssignStaff = (inquiryId: string, staffId: string) => {
     const assigned = staff.find((s) => s.id === staffId);
     setInquiries((prev) =>
-      prev.map((inq) =>
-        inq.id === inquiryId
-          ? {
-              ...inq,
-              assignedStaffId: staffId,
-              assignedStaffName: assigned ? `${assigned.name} (${assigned.role})` : undefined,
-              updatedAt: new Date().toISOString(),
-            }
-          : inq
-      )
+      prev.map((inq) => {
+        if (inq.id === inquiryId) {
+          const updated = {
+            ...inq,
+            assignedStaffId: staffId,
+            assignedStaffName: assigned ? `${assigned.name} (${assigned.role})` : undefined,
+            updatedAt: new Date().toISOString(),
+          };
+          firestoreChatService.saveInquiry(updated).catch(console.warn);
+          return updated;
+        }
+        return inq;
+      })
     );
   };
 
@@ -514,6 +510,7 @@ export default function App() {
       ],
     };
     setProducts((prev) => [newProd, ...prev]);
+    firestoreChatService.saveProduct(newProd).catch(console.warn);
   };
 
   const handleAddService = (srvData: Partial<Service>) => {
@@ -535,6 +532,7 @@ export default function App() {
       ],
     };
     setServices((prev) => [newSrv, ...prev]);
+    firestoreChatService.saveService(newSrv).catch(console.warn);
   };
 
   const handleReport = (targetType: 'user' | 'business' | 'message', targetId: string) => {
@@ -555,6 +553,7 @@ export default function App() {
       status: 'pending',
     };
     setReports((prev) => [newReport, ...prev]);
+    firestoreChatService.saveReport(newReport).catch(console.warn);
   };
 
   const handleBlockUser = (targetId: string) => {
@@ -583,20 +582,25 @@ export default function App() {
           onBack={() => setViewMode('main')}
           onApproveVerification={(bizId, level) => {
             setBusinesses((prev) =>
-              prev.map((b) =>
-                b.id === bizId
-                  ? {
-                      ...b,
-                      verification: {
-                        ...b.verification,
-                        level,
-                        locationVerified: level >= 2,
-                        businessDocVerified: level >= 3,
-                        lastVerifiedDate: new Date().toISOString().split('T')[0],
-                      },
-                    }
-                  : b
-              )
+              prev.map((b) => {
+                if (b.id === bizId) {
+                  const updated: Business = {
+                    ...b,
+                    verification: {
+                      ...b.verification,
+                      level,
+                      status: 'verified',
+                      mobileVerified: level >= 1,
+                      locationVerified: level >= 2,
+                      businessDocVerified: level >= 3,
+                      lastVerifiedDate: new Date().toISOString().split('T')[0],
+                    },
+                  };
+                  firestoreChatService.saveBusiness(updated).catch(console.warn);
+                  return updated;
+                }
+                return b;
+              })
             );
           }}
           onToggleSponsored={(bizId) => {

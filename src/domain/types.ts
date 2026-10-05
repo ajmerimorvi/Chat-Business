@@ -38,8 +38,20 @@ export interface BusinessHours {
   isOpenToday: boolean;
 }
 
+export type VerificationStatus = 'draft' | 'pending_verification' | 'verified' | 're_verification_required' | 'suspended';
+
+export interface VerificationAuditEvent {
+  id: string;
+  eventType: 'mobile_otp' | 'gps_geofence' | 'gst_doc' | 'reverification_trigger' | 'admin_override';
+  status: 'passed' | 'failed' | 'flagged';
+  timestamp: string;
+  performedBy: string;
+  details: string;
+}
+
 export interface BusinessVerification {
   level: VerificationLevel;
+  status?: VerificationStatus;
   mobileVerified: boolean;
   mobileVerifiedAt?: string;
   locationVerified: boolean;
@@ -55,8 +67,10 @@ export interface BusinessVerification {
   businessDocNumber?: string;
   businessDocVerifiedAt?: string;
   lastVerifiedDate: string;
+  nextVerificationDueAt?: string;
   reverificationRequired: boolean;
   riskReason?: string;
+  auditHistory?: VerificationAuditEvent[];
 }
 
 export interface Business {

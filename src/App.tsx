@@ -34,6 +34,7 @@ import { NewChatModal } from './presentation/components/NewChatModal';
 import { AppMenuModal } from './presentation/components/AppMenuModal';
 import { subscribeToAuthChanges, getCurrentAuthUser } from './services/authService';
 import { localDb } from './services/localDb';
+import { firestoreChatService } from './services/firestoreChatService';
 import { BottomNav, NavTab } from './presentation/components/BottomNav';
 import {
   ShieldCheck,
@@ -131,6 +132,28 @@ export default function App() {
   useEffect(() => {
     localDb.saveContacts(contacts);
   }, [contacts]);
+
+  // Real-time canonical Firestore sync for conversations across devices
+  useEffect(() => {
+    if (!currentUser.id) return;
+    const unsub = firestoreChatService.subscribeConversations(currentUser.id, (realtimeConvs) => {
+      if (realtimeConvs && realtimeConvs.length > 0) {
+        setConversations(realtimeConvs);
+      }
+    });
+    return () => unsub();
+  }, [currentUser.id]);
+
+  // Real-time canonical Firestore sync for messages in active conversation
+  useEffect(() => {
+    if (!activeConversation?.id) return;
+    const unsub = firestoreChatService.subscribeMessages(activeConversation.id, (realtimeMsgs) => {
+      if (realtimeMsgs && realtimeMsgs.length > 0) {
+        setMessages((prev) => ({ ...prev, [activeConversation.id]: realtimeMsgs }));
+      }
+    });
+    return () => unsub();
+  }, [activeConversation?.id]);
 
   // Auto-subscribe to Firebase Auth state for Google/Gmail logins
   useEffect(() => {
@@ -400,6 +423,11 @@ export default function App() {
       )
     );
 
+    // Write canonically to Firestore for real cross-device synchronization
+    firestoreChatService.sendMessage(activeConversation.id, newMsg, activeConversation).catch((err) => {
+      console.warn('Firestore message sync notice:', err);
+    });
+
     // 1. Transition to 'delivered' (double grey checkmarks) after 400ms
     setTimeout(() => {
       setMessages((prev) => {
@@ -534,6 +562,7 @@ export default function App() {
 
   const handleUpdateVerification = (updatedBiz: Business) => {
     setBusinesses((prev) => prev.map((b) => (b.id === updatedBiz.id ? updatedBiz : b)));
+    firestoreChatService.saveBusiness(updatedBiz).catch(console.warn);
     setConversations((prev) =>
       prev.map((c) => {
         if (c.businessId === updatedBiz.id) {

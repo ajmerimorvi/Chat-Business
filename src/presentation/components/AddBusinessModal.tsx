@@ -151,7 +151,7 @@ export const AddBusinessModal: React.FC<AddBusinessModalProps> = ({
         updatedAt: nowIso,
         verification: {
           level: 0,
-          status: 'draft',
+          status: 'UNVERIFIED',
           mobileVerified: false,
           locationVerified: false,
           businessDocVerified: false,

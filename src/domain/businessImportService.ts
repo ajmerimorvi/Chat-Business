@@ -18,7 +18,7 @@ export interface RawImportRow {
   [key: string]: any;
 }
 
-export type RowValidationStatus = 'valid' | 'invalid' | 'possible_duplicate';
+export type RowValidationStatus = 'valid' | 'invalid' | 'exact_duplicate' | 'possible_duplicate';
 
 export interface ValidatedRow {
   rowNumber: number;
@@ -50,8 +50,10 @@ export interface ValidatedRow {
 export interface ImportValidationResult {
   totalRows: number;
   validRows: ValidatedRow[];
+  exactDuplicateRows: ValidatedRow[];
+  possibleDuplicateRows: ValidatedRow[];
+  duplicateRows: ValidatedRow[]; // exact + possible
   invalidRows: ValidatedRow[];
-  duplicateRows: ValidatedRow[];
   allRows: ValidatedRow[];
 }
 
@@ -187,6 +189,8 @@ export function validateImportRows(
 ): ImportValidationResult {
   const validRows: ValidatedRow[] = [];
   const invalidRows: ValidatedRow[] = [];
+  const exactDuplicateRows: ValidatedRow[] = [];
+  const possibleDuplicateRows: ValidatedRow[] = [];
   const duplicateRows: ValidatedRow[] = [];
   const allRows: ValidatedRow[] = [];
 
@@ -288,9 +292,18 @@ export function validateImportRows(
 
     const whatsappCheck = normalizeIndianMobile(rawWhatsapp);
 
+    let rowStatus: RowValidationStatus = 'valid';
+    if (errors.length > 0) {
+      rowStatus = 'invalid';
+    } else if (duplicateInfo?.type === 'strong_mobile') {
+      rowStatus = 'exact_duplicate';
+    } else if (duplicateInfo?.type === 'possible_name_city') {
+      rowStatus = 'possible_duplicate';
+    }
+
     const validatedRow: ValidatedRow = {
       rowNumber: row.rowNumber,
-      status: errors.length > 0 ? 'invalid' : duplicateInfo ? 'possible_duplicate' : 'valid',
+      status: rowStatus,
       errors,
       warnings,
       duplicateOf: duplicateInfo,
@@ -313,7 +326,11 @@ export function validateImportRows(
     allRows.push(validatedRow);
     if (validatedRow.status === 'invalid') {
       invalidRows.push(validatedRow);
+    } else if (validatedRow.status === 'exact_duplicate') {
+      exactDuplicateRows.push(validatedRow);
+      duplicateRows.push(validatedRow);
     } else if (validatedRow.status === 'possible_duplicate') {
+      possibleDuplicateRows.push(validatedRow);
       duplicateRows.push(validatedRow);
     } else {
       validRows.push(validatedRow);
@@ -323,8 +340,10 @@ export function validateImportRows(
   return {
     totalRows: rawRows.length,
     validRows,
-    invalidRows,
+    exactDuplicateRows,
+    possibleDuplicateRows,
     duplicateRows,
+    invalidRows,
     allRows,
   };
 }
@@ -419,7 +438,7 @@ export function convertImportRowToBusiness(
     importId,
     verification: {
       level: 0,
-      status: 'draft',
+      status: 'UNVERIFIED',
       mobileVerified: false,
       locationVerified: false,
       businessDocVerified: false,

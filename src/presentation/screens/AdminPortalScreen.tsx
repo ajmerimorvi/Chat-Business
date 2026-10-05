@@ -64,12 +64,18 @@ export const AdminPortalScreen: React.FC<AdminPortalScreenProps> = ({
   // Business Database filter and search state
   const [filterType, setFilterType] = useState<BusinessFilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(50);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedBusinessForDetail, setSelectedBusinessForDetail] = useState<Business | null>(null);
+
+  // Reset pagination on search or filter change
+  useEffect(() => {
+    setDisplayLimit(50);
+  }, [searchQuery, filterType]);
 
   // Import history records
   const [importHistory, setImportHistory] = useState<BusinessImportRecord[]>([]);
@@ -81,7 +87,7 @@ export const AdminPortalScreen: React.FC<AdminPortalScreenProps> = ({
     return () => unsub();
   }, []);
 
-  // Summary statistics
+  // Summary statistics strictly based on authoritative verificationStatus
   const metrics = useMemo(() => {
     let verified = 0;
     let unverified = 0;
@@ -94,12 +100,11 @@ export const AdminPortalScreen: React.FC<AdminPortalScreenProps> = ({
         inactive++;
       }
 
-      const vStatus = b.verificationStatus || (b.verification?.level > 0 ? 'VERIFIED' : 'UNVERIFIED');
-      if (vStatus === 'VERIFIED') {
+      if (b.verificationStatus === 'VERIFIED') {
         verified++;
-      } else if (vStatus === 'VERIFICATION_PENDING' || b.verification?.status === 'pending_verification') {
+      } else if (b.verificationStatus === 'VERIFICATION_PENDING') {
         pending++;
-      } else if (vStatus === 'REJECTED') {
+      } else if (b.verificationStatus === 'REJECTED') {
         rejected++;
       } else {
         unverified++;
@@ -116,22 +121,21 @@ export const AdminPortalScreen: React.FC<AdminPortalScreenProps> = ({
     };
   }, [businesses]);
 
-  // Filtered & Searched businesses
+  // Filtered & Searched businesses strictly using authoritative verificationStatus
   const filteredBusinesses = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return businesses.filter((b) => {
-      // 1. Status Filter
-      const vStatus = b.verificationStatus || (b.verification?.level > 0 ? 'VERIFIED' : 'UNVERIFIED');
+      const vStatus = b.verificationStatus || 'UNVERIFIED';
       const isInactive = b.status === 'INACTIVE';
 
       if (filterType === 'unverified' && (vStatus !== 'UNVERIFIED' || isInactive)) return false;
-      if (filterType === 'pending' && (vStatus !== 'VERIFICATION_PENDING' && b.verification?.status !== 'pending_verification')) return false;
+      if (filterType === 'pending' && (vStatus !== 'VERIFICATION_PENDING' || isInactive)) return false;
       if (filterType === 'verified' && (vStatus !== 'VERIFIED' || isInactive)) return false;
       if (filterType === 'rejected' && vStatus !== 'REJECTED') return false;
       if (filterType === 'inactive' && !isInactive) return false;
 
-      // 2. Search Query (business name, mobile, contact person, city)
+      // Search Query (business name, mobile, contact person, city)
       if (query) {
         const nameMatch = (b.name || b.businessName || '').toLowerCase().includes(query);
         const mobileMatch = (b.phone || b.mobile || '').replace(/[^\d]/g, '').includes(query.replace(/[^\d]/g, ''));

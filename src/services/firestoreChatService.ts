@@ -165,13 +165,14 @@ export const firestoreChatService = {
   },
 
   /**
-   * Subscribe to Businesses in Firestore
+   * Subscribe to Businesses in Firestore with bounded limit to prevent browser memory exhaustion on large collections
    */
-  subscribeBusinesses(onUpdate: (businesses: Business[]) => void): () => void {
+  subscribeBusinesses(onUpdate: (businesses: Business[]) => void, limitCount: number = 200): () => void {
     try {
       const bizRef = collection(db, 'businesses');
+      const q = query(bizRef, limit(limitCount));
       return onSnapshot(
-        bizRef,
+        q,
         (snapshot) => {
           const list: Business[] = [];
           snapshot.forEach((d) => {
@@ -249,15 +250,33 @@ export const firestoreChatService = {
 
   /**
    * Save business document to Firestore
+   * SECURITY ENFORCEMENT: Client saveBusiness cannot elevate or create a verified business.
+   * New businesses are strictly forced to UNVERIFIED with level 0.
    */
   async saveBusiness(business: Business): Promise<void> {
     const bizRef = doc(db, 'businesses', business.id);
+    const isAlreadyVerified = business.verificationStatus === 'VERIFIED' && (business.verification?.level ?? 0) > 0;
+
     const secureBusiness: Business = {
       ...business,
-      // If newly created without a verificationStatus or set as UNVERIFIED, force UNVERIFIED
-      verificationStatus: business.verificationStatus || (business.verification?.level > 0 ? 'VERIFIED' : 'UNVERIFIED'),
+      businessId: business.businessId || business.id,
+      businessName: business.businessName || business.name,
+      mobile: business.mobile || business.phone,
       status: business.status || 'ACTIVE',
       source: business.source || 'MANUAL',
+      verificationStatus: isAlreadyVerified ? 'VERIFIED' : 'UNVERIFIED',
+      verification: isAlreadyVerified
+        ? { ...business.verification, status: 'VERIFIED' }
+        : {
+            ...business.verification,
+            level: 0,
+            status: 'UNVERIFIED',
+            mobileVerified: false,
+            locationVerified: false,
+            businessDocVerified: false,
+            reverificationRequired: false,
+            lastVerifiedDate: business.verification?.lastVerifiedDate || new Date().toISOString().split('T')[0],
+          },
       updatedAt: new Date().toISOString(),
     };
     await setDoc(bizRef, secureBusiness, { merge: true });
@@ -286,7 +305,7 @@ export const firestoreChatService = {
           verification: {
             ...b.verification,
             level: 0,
-            status: 'draft',
+            status: 'UNVERIFIED',
             mobileVerified: false,
             locationVerified: false,
             businessDocVerified: false,
@@ -421,9 +440,10 @@ export const firestoreChatService = {
     batch.set(
       bizRef,
       {
+        verificationStatus: 'VERIFIED',
         verification: {
           level,
-          status: 'verified',
+          status: 'VERIFIED',
           mobileVerified: level >= 1,
           locationVerified: level >= 2,
           businessDocVerified: level >= 3,

@@ -99,10 +99,9 @@ export function transitionVerificationState(
   if (mobileVerified && locationVerified && businessDocVerified) level = 3;
 
   // Calculate Verification Status
-  let status: VerificationStatus = 'draft';
-  if (level === 0) status = 'draft';
-  else if (level < 3) status = 'pending_verification';
-  else status = 'verified';
+  let status: VerificationStatus = 'UNVERIFIED';
+  if (level === 0) status = 'UNVERIFIED';
+  else status = 'VERIFICATION_PENDING';
 
   // Next audit due in 180 days
   const nextAudit = new Date();

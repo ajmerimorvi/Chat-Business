@@ -588,10 +588,11 @@ export default function App() {
                     if (b.id === bizId) {
                       return {
                         ...b,
+                        verificationStatus: 'VERIFIED',
                         verification: {
                           ...b.verification,
                           level,
-                          status: 'verified',
+                          status: 'VERIFIED',
                           mobileVerified: level >= 1,
                           locationVerified: level >= 2,
                           businessDocVerified: level >= 3,
@@ -695,9 +696,15 @@ export default function App() {
                       activeConversationsCount: 0,
                       maxActiveConversations: 10,
                       subscriptionTier: 'free',
+                      status: 'ACTIVE',
+                      verificationStatus: 'UNVERIFIED',
+                      source: 'MANUAL',
+                      createdBy: currentUser.id,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
                       verification: {
                         level: 0,
-                        status: 'draft',
+                        status: 'UNVERIFIED',
                         mobileVerified: false,
                         locationVerified: false,
                         businessDocVerified: false,

@@ -35,6 +35,9 @@ export type BusinessDatabaseStatus = 'ACTIVE' | 'INACTIVE';
 
 export type BusinessVerificationStatus = 'UNVERIFIED' | 'VERIFICATION_PENDING' | 'VERIFIED' | 'REJECTED';
 
+// VerificationStatus is unified directly with BusinessVerificationStatus (no dual status systems)
+export type VerificationStatus = BusinessVerificationStatus;
+
 export type BusinessSource = 'MANUAL' | 'CSV_IMPORT' | 'EXCEL_IMPORT' | 'SALES_TEAM';
 
 export interface BusinessHours {
@@ -43,8 +46,6 @@ export interface BusinessHours {
   closeTime: string; // "20:00"
   isOpenToday: boolean;
 }
-
-export type VerificationStatus = 'draft' | 'pending_verification' | 'verified' | 're_verification_required' | 'suspended';
 
 export interface VerificationAuditEvent {
   id: string;
@@ -56,8 +57,8 @@ export interface VerificationAuditEvent {
 }
 
 export interface BusinessVerification {
-  level: VerificationLevel;
-  status?: VerificationStatus;
+  level: VerificationLevel; // 0 = unverified, 1 = mobile, 2 = mobile + location, 3 = mobile + location + document
+  status: BusinessVerificationStatus; // Aligned with the authoritative verification status
   mobileVerified: boolean;
   mobileVerifiedAt?: string;
   locationVerified: boolean;

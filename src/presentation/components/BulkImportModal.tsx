@@ -52,7 +52,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   const [parseError, setParseError] = useState<string | null>(null);
 
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null);
-  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [skipExactDuplicates, setSkipExactDuplicates] = useState(true);
+  const [includePossibleDuplicates, setIncludePossibleDuplicates] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -143,12 +144,18 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       // Determine rows to import based on duplicate settings
       const candidateRows: ValidatedRow[] = [
         ...validationResult.validRows,
-        ...(skipDuplicates ? [] : validationResult.duplicateRows),
+        ...(skipExactDuplicates ? [] : validationResult.exactDuplicateRows),
+        ...(includePossibleDuplicates ? validationResult.possibleDuplicateRows : []),
       ];
 
       const businessEntities = candidateRows.map((r) =>
         convertImportRowToBusiness(r, source, currentUserId || 'admin_user', importId)
       );
+
+      const skippedCount =
+        validationResult.invalidRows.length +
+        (skipExactDuplicates ? validationResult.exactDuplicateRows.length : 0) +
+        (includePossibleDuplicates ? 0 : validationResult.possibleDuplicateRows.length);
 
       const importRecord: BusinessImportRecord = {
         importId,
@@ -159,7 +166,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         invalidRows: validationResult.invalidRows.length,
         duplicateRows: validationResult.duplicateRows.length,
         importedRows: businessEntities.length,
-        skippedRows: validationResult.invalidRows.length + (skipDuplicates ? validationResult.duplicateRows.length : 0),
+        skippedRows: skippedCount,
         uploadedBy: currentUserId || 'admin_user',
         uploadedByName: currentUserName || 'Platform Administrator',
         createdAt: nowIso,
@@ -293,21 +300,27 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         {step === 'preview' && validationResult && (
           <div className="p-5 flex-1 flex flex-col space-y-4 overflow-hidden">
             {/* Metric Summary Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <div className="bg-gray-50 border border-gray-200 p-2.5 rounded-xl">
-                <span className="text-[11px] text-gray-500 block">Total Rows In File</span>
+                <span className="text-[11px] text-gray-500 block">Total Rows</span>
                 <span className="text-base font-bold text-gray-900">{validationResult.totalRows.toLocaleString()}</span>
               </div>
               <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl">
-                <span className="text-[11px] text-emerald-700 block">Valid Rows</span>
+                <span className="text-[11px] text-emerald-700 block">New / Valid</span>
                 <span className="text-base font-bold text-emerald-800">
                   {validationResult.validRows.length.toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-orange-50 border border-orange-200 p-2.5 rounded-xl">
+                <span className="text-[11px] text-orange-700 block">Exact Duplicates</span>
+                <span className="text-base font-bold text-orange-800">
+                  {validationResult.exactDuplicateRows.length.toLocaleString()}
                 </span>
               </div>
               <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
                 <span className="text-[11px] text-amber-700 block">Possible Duplicates</span>
                 <span className="text-base font-bold text-amber-800">
-                  {validationResult.duplicateRows.length.toLocaleString()}
+                  {validationResult.possibleDuplicateRows.length.toLocaleString()}
                 </span>
               </div>
               <div className="bg-red-50 border border-red-200 p-2.5 rounded-xl">
@@ -320,17 +333,32 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
             {/* Error Actions & Duplicate Options */}
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-gray-50 p-3 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="skipDuplicates"
-                  checked={skipDuplicates}
-                  onChange={(e) => setSkipDuplicates(e.target.checked)}
-                  className="rounded text-emerald-600"
-                />
-                <label htmlFor="skipDuplicates" className="text-gray-700 cursor-pointer font-medium">
-                  Skip existing duplicates ({validationResult.duplicateRows.length} rows)
-                </label>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    id="skipExactDuplicates"
+                    checked={skipExactDuplicates}
+                    onChange={(e) => setSkipExactDuplicates(e.target.checked)}
+                    className="rounded text-emerald-600 cursor-pointer"
+                  />
+                  <label htmlFor="skipExactDuplicates" className="text-gray-700 cursor-pointer font-medium">
+                    Skip Exact Duplicates ({validationResult.exactDuplicateRows.length} phone matches)
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    id="includePossibleDuplicates"
+                    checked={includePossibleDuplicates}
+                    onChange={(e) => setIncludePossibleDuplicates(e.target.checked)}
+                    className="rounded text-emerald-600 cursor-pointer"
+                  />
+                  <label htmlFor="includePossibleDuplicates" className="text-gray-700 cursor-pointer font-medium">
+                    Include Possible Duplicates for Review ({validationResult.possibleDuplicateRows.length} rows)
+                  </label>
+                </div>
               </div>
 
               {validationResult.invalidRows.length > 0 && (
@@ -365,6 +393,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                       className={
                         r.status === 'invalid'
                           ? 'bg-red-50/40'
+                          : r.status === 'exact_duplicate'
+                          ? 'bg-orange-50/40'
                           : r.status === 'possible_duplicate'
                           ? 'bg-amber-50/40'
                           : 'hover:bg-gray-50'
@@ -382,13 +412,19 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                       <td className="py-2 px-3">
                         {r.status === 'valid' && (
                           <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
-                            <CheckCircle2 size={12} /> Valid
+                            <CheckCircle2 size={12} /> New Business
+                          </span>
+                        )}
+                        {r.status === 'exact_duplicate' && (
+                          <span className="inline-flex items-center gap-1 text-orange-800 font-medium text-[11px]">
+                            <AlertTriangle size={12} className="text-orange-600 shrink-0" />
+                            Exact Match: {r.duplicateOf?.businessName} ({r.duplicateOf?.mobile})
                           </span>
                         )}
                         {r.status === 'possible_duplicate' && (
                           <span className="inline-flex items-center gap-1 text-amber-800 font-medium text-[11px]">
-                            <AlertTriangle size={12} className="text-amber-600" />
-                            {r.warnings[0] || 'Possible Duplicate'}
+                            <AlertTriangle size={12} className="text-amber-600 shrink-0" />
+                            Possible Match: {r.duplicateOf?.businessName}
                           </span>
                         )}
                         {r.status === 'invalid' && (
@@ -434,12 +470,22 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                 <button
                   type="button"
                   onClick={handleExecuteImport}
-                  disabled={importing || (validationResult.validRows.length === 0 && (skipDuplicates || validationResult.duplicateRows.length === 0))}
+                  disabled={
+                    importing ||
+                    validationResult.validRows.length +
+                      (skipExactDuplicates ? 0 : validationResult.exactDuplicateRows.length) +
+                      (includePossibleDuplicates ? validationResult.possibleDuplicateRows.length : 0) ===
+                      0
+                  }
                   className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {importing && <Loader2 size={14} className="animate-spin" />}
                   <span>
-                    Import {validationResult.validRows.length + (skipDuplicates ? 0 : validationResult.duplicateRows.length)} Valid Businesses
+                    Import{' '}
+                    {validationResult.validRows.length +
+                      (skipExactDuplicates ? 0 : validationResult.exactDuplicateRows.length) +
+                      (includePossibleDuplicates ? validationResult.possibleDuplicateRows.length : 0)}{' '}
+                    Businesses
                   </span>
                 </button>
               </div>

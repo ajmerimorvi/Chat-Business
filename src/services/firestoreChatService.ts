@@ -6,13 +6,14 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   getDocs,
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Conversation, Message, Inquiry, Business, Product, Service } from '../domain/types';
+import { Conversation, Message, Inquiry, Business, Product, Service, BusinessImportRecord } from '../domain/types';
 
 /**
  * Production-ready Firestore Real-Time Data Service.
@@ -251,7 +252,88 @@ export const firestoreChatService = {
    */
   async saveBusiness(business: Business): Promise<void> {
     const bizRef = doc(db, 'businesses', business.id);
-    await setDoc(bizRef, business, { merge: true });
+    const secureBusiness: Business = {
+      ...business,
+      // If newly created without a verificationStatus or set as UNVERIFIED, force UNVERIFIED
+      verificationStatus: business.verificationStatus || (business.verification?.level > 0 ? 'VERIFIED' : 'UNVERIFIED'),
+      status: business.status || 'ACTIVE',
+      source: business.source || 'MANUAL',
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(bizRef, secureBusiness, { merge: true });
+  },
+
+  /**
+   * Bulk save imported businesses in atomic batches of up to 400 items,
+   * strictly enforcing verificationStatus = 'UNVERIFIED' on all records.
+   */
+  async bulkSaveBusinesses(
+    businesses: Business[],
+    importRecord?: BusinessImportRecord
+  ): Promise<void> {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < businesses.length; i += CHUNK_SIZE) {
+      const chunk = businesses.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+
+      for (const b of chunk) {
+        const secureBusiness: Business = {
+          ...b,
+          // CRITICAL SECURITY ENFORCEMENT: Never allow bulk import to mark verified!
+          verificationStatus: 'UNVERIFIED',
+          status: b.status || 'ACTIVE',
+          source: b.source || 'CSV_IMPORT',
+          verification: {
+            ...b.verification,
+            level: 0,
+            status: 'draft',
+            mobileVerified: false,
+            locationVerified: false,
+            businessDocVerified: false,
+            reverificationRequired: false,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        batch.set(doc(db, 'businesses', secureBusiness.id), secureBusiness, { merge: true });
+      }
+
+      await batch.commit();
+    }
+
+    if (importRecord) {
+      await this.saveImportRecord(importRecord);
+    }
+  },
+
+  /**
+   * Save an import history log
+   */
+  async saveImportRecord(record: BusinessImportRecord): Promise<void> {
+    const ref = doc(db, 'businessImports', record.importId);
+    await setDoc(ref, {
+      ...record,
+      createdAt: record.createdAt || new Date().toISOString(),
+    });
+  },
+
+  /**
+   * Real-time subscription to import history
+   */
+  subscribeImportHistory(onUpdate: (records: BusinessImportRecord[]) => void): () => void {
+    const q = query(collection(db, 'businessImports'), orderBy('createdAt', 'desc'), limit(50));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const records: BusinessImportRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          records.push(docSnap.data() as BusinessImportRecord);
+        });
+        onUpdate(records);
+      },
+      (err) => {
+        console.warn('Import history sync notice:', err);
+      }
+    );
   },
 
   /**

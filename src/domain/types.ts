@@ -31,6 +31,12 @@ export type BusinessType = 'physical_store' | 'manufacturer' | 'office' | 'home_
 
 export type VerificationLevel = 0 | 1 | 2 | 3;
 
+export type BusinessDatabaseStatus = 'ACTIVE' | 'INACTIVE';
+
+export type BusinessVerificationStatus = 'UNVERIFIED' | 'VERIFICATION_PENDING' | 'VERIFIED' | 'REJECTED';
+
+export type BusinessSource = 'MANUAL' | 'CSV_IMPORT' | 'EXCEL_IMPORT' | 'SALES_TEAM';
+
 export interface BusinessHours {
   days: string; // e.g. "Mon - Sat"
   openTime: string; // "09:00"
@@ -107,6 +113,61 @@ export interface Business {
   awayMessage?: string;
   quickReplies?: string[];
   searchKeywords: string[];
+
+  // Database Management & Audit Foundation fields
+  businessId?: string;
+  businessName?: string;
+  contactPerson?: string;
+  mobile?: string;
+  whatsapp?: string;
+  area?: string;
+  state?: string;
+  pincode?: string;
+  remarks?: string;
+  status?: BusinessDatabaseStatus;
+  verificationStatus?: BusinessVerificationStatus;
+  source?: BusinessSource;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  importId?: string;
+}
+
+export interface BusinessImportRecord {
+  importId: string;
+  fileName: string;
+  fileType: 'csv' | 'xlsx';
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  importedRows: number;
+  skippedRows: number;
+  uploadedBy: string;
+  uploadedByName?: string;
+  createdAt: string;
+  status: 'completed' | 'partial' | 'failed';
+  errors?: Array<{ row: number; businessName?: string; reason: string }>;
+}
+
+export interface BusinessVerificationRecord {
+  verificationId: string;
+  businessId: string;
+  businessName: string;
+  verifiedBy: string;
+  verifierName?: string;
+  verificationDate: string;
+  mobileOtpVerified: boolean;
+  locationVerified: boolean;
+  businessExists: boolean;
+  latitude?: number;
+  longitude?: number;
+  distanceMeters?: number;
+  businessPhoto?: string;
+  remarks?: string;
+  status: 'pending_review' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface Product {

@@ -619,6 +619,16 @@ export default function App() {
               )
             );
           }}
+          onAddBusiness={async (newBiz) => {
+            await firestoreChatService.saveBusiness(newBiz);
+            setBusinesses((prev) => [newBiz, ...prev]);
+          }}
+          onBulkImportBusinesses={async (entities, importRecord) => {
+            await firestoreChatService.bulkSaveBusinesses(entities, importRecord);
+            setBusinesses((prev) => [...entities, ...prev]);
+          }}
+          currentUserId={currentUser.id}
+          currentUserName={currentUser.name}
           lang={lang}
         />
       );

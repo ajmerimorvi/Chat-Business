@@ -102,3 +102,8 @@ export async function logoutUser(): Promise<void> {
 export function subscribeToAuthChanges(callback: (user: FirebaseUser | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
+
+export function getCurrentAuthUser(): FirebaseUser | null {
+  return auth.currentUser;
+}
+

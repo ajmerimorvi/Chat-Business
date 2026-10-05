@@ -640,6 +640,7 @@ export const INITIAL_CONVERSATIONS: Conversation[] = [
       senderId: 'usr_me',
       timestamp: 'Yesterday',
       type: 'text',
+      status: 'read',
     },
     unreadCount: 0,
     updatedAt: '2026-10-03T18:20:00Z',

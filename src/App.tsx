@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   CURRENT_USER,
-  INITIAL_CONTACTS,
-  INITIAL_BUSINESSES,
-  INITIAL_PRODUCTS,
-  INITIAL_SERVICES,
-  INITIAL_CONVERSATIONS,
-  INITIAL_MESSAGES,
-  INITIAL_INQUIRIES,
-  INITIAL_STAFF,
-  INITIAL_REPORTS,
 } from './repositories/initialData';
 import {
   User,
@@ -39,36 +30,47 @@ import { AdminPortalScreen } from './presentation/screens/AdminPortalScreen';
 import { ProfileSettingsScreen } from './presentation/screens/ProfileSettingsScreen';
 import { ApkDownloadModal } from './presentation/components/ApkDownloadModal';
 import { AuthModal } from './presentation/components/AuthModal';
-import { subscribeToAuthChanges } from './services/authService';
-import { downloadSamparkApk } from './utils/apkDownloader';
+import { NewChatModal } from './presentation/components/NewChatModal';
+import { AppMenuModal } from './presentation/components/AppMenuModal';
+import { subscribeToAuthChanges, getCurrentAuthUser } from './services/authService';
+import { localDb } from './services/localDb';
 import { BottomNav, NavTab } from './presentation/components/BottomNav';
 import {
-  Smartphone,
-  Maximize2,
-  Minimize2,
-  PhoneCall,
-  Bell,
-  CheckCircle2,
   ShieldCheck,
-  AlertCircle,
-  Clock,
+  CheckCircle2,
+  Lock,
+  MessageSquare,
   Sparkles,
-  Search,
-  Mail,
+  Store,
+  PhoneCall,
 } from 'lucide-react';
 
 export default function App() {
-  // Global State
-  const [currentUser, setCurrentUser] = useState<User>(CURRENT_USER);
-  const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
-  const [businesses, setBusinesses] = useState<Business[]>(INITIAL_BUSINESSES);
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
-  const [messages, setMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
-  const [inquiries, setInquiries] = useState<Inquiry[]>(INITIAL_INQUIRIES);
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
-  const [reports, setReports] = useState<ReportItem[]>(INITIAL_REPORTS);
+  // Global State with LocalDb Persistence
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const authUser = getCurrentAuthUser();
+    if (authUser) {
+      return {
+        ...CURRENT_USER,
+        id: authUser.uid,
+        name: authUser.displayName || 'Morvi Ajmeri',
+        email: authUser.email || 'ajmeri.morvi@gmail.com',
+        avatarUrl: authUser.photoURL || CURRENT_USER.avatarUrl,
+        authProvider: 'google',
+      };
+    }
+    return CURRENT_USER;
+  });
+
+  const [contacts, setContacts] = useState<Contact[]>(() => localDb.getContacts());
+  const [businesses, setBusinesses] = useState<Business[]>(() => localDb.getBusinesses());
+  const [products, setProducts] = useState<Product[]>(() => localDb.getProducts());
+  const [services, setServices] = useState<Service[]>(() => localDb.getServices());
+  const [conversations, setConversations] = useState<Conversation[]>(() => localDb.getConversations());
+  const [messages, setMessages] = useState<Record<string, Message[]>>(() => localDb.getMessages());
+  const [inquiries, setInquiries] = useState<Inquiry[]>(() => localDb.getInquiries());
+  const [staff] = useState<StaffMember[]>([]);
+  const [reports, setReports] = useState<ReportItem[]>([]);
   const [lang, setLang] = useState<Language>('en');
 
   // Navigation & View state
@@ -94,13 +96,41 @@ export default function App() {
   // Modals
   const [showVerificationWizard, setShowVerificationWizard] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showPersonaModal, setShowPersonaModal] = useState(false);
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showApkModal, setShowApkModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isPhoneFrame, setIsPhoneFrame] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+
+  // Sync state to localDb on update
+  useEffect(() => {
+    localDb.saveConversations(conversations);
+  }, [conversations]);
+
+  useEffect(() => {
+    localDb.saveMessages(messages);
+  }, [messages]);
+
+  useEffect(() => {
+    localDb.saveBusinesses(businesses);
+  }, [businesses]);
+
+  useEffect(() => {
+    localDb.saveProducts(products);
+  }, [products]);
+
+  useEffect(() => {
+    localDb.saveServices(services);
+  }, [services]);
+
+  useEffect(() => {
+    localDb.saveInquiries(inquiries);
+  }, [inquiries]);
+
+  useEffect(() => {
+    localDb.saveContacts(contacts);
+  }, [contacts]);
 
   // Auto-subscribe to Firebase Auth state for Google/Gmail logins
   useEffect(() => {
@@ -117,18 +147,6 @@ export default function App() {
       }
     });
     return () => unsubscribe();
-  }, []);
-
-  // Auto-detect mobile devices to remove frame simulation
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (window.innerWidth <= 640 || window.matchMedia('(display-mode: standalone)').matches) {
-        setIsPhoneFrame(false);
-      }
-      if (window.matchMedia('(display-mode: standalone)').matches) {
-        setIsInstalled(true);
-      }
-    }
   }, []);
 
   // Listen for native Android PWA install prompt
@@ -150,7 +168,7 @@ export default function App() {
         setIsInstalled(true);
       }
     } else {
-      setShowInstallGuide(true);
+      setShowApkModal(true);
     }
   };
 
@@ -197,7 +215,7 @@ export default function App() {
     };
   }, [searchQuery, contacts, conversations, messages, businesses, products, services]);
 
-  // Handle starting a conversation (from search, profile, or product)
+  // Handle starting a conversation (from search, profile, product, or new chat modal)
   const handleOpenOrCreateChatWith = (
     target: {
       id: string;
@@ -211,7 +229,6 @@ export default function App() {
     linkedProduct?: Product,
     linkedService?: Service
   ) => {
-    // Check if conversation exists
     let existingConv = conversations.find(
       (c) => c.otherParticipant.id === target.id || (target.businessId && c.businessId === target.businessId)
     );
@@ -284,7 +301,6 @@ export default function App() {
         ],
       }));
 
-      // If inquiry context
       if (linkedProduct || linkedService) {
         const newInq: Inquiry = {
           id: `inq_${Date.now()}`,
@@ -304,7 +320,6 @@ export default function App() {
         setInquiries((prev) => [newInq, ...prev]);
       }
     } else if (initialMessage) {
-      // Send initial message to existing conv
       handleSendMessage({
         conversationId: existingConv.id,
         senderId: currentUser.id,
@@ -324,12 +339,30 @@ export default function App() {
     setSearchQuery('');
   };
 
-  // Send message in active chat
+  // Select a conversation and mark incoming messages as read
+  const handleSelectConversation = (conv: Conversation) => {
+    setMessages((prev) => {
+      const list = prev[conv.id] || [];
+      const updated = list.map((m) =>
+        m.senderId !== currentUser.id && m.status !== 'read' ? { ...m, status: 'read' as const } : m
+      );
+      return { ...prev, [conv.id]: updated };
+    });
+
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
+    );
+
+    setActiveConversation({ ...conv, unreadCount: 0 });
+  };
+
+  // Send message in active chat with real sent -> delivered -> read status transitions
   const handleSendMessage = (msgPayload: Partial<Message>) => {
     if (!activeConversation) return;
 
+    const msgId = `msg_${Date.now()}`;
     const newMsg: Message = {
-      id: `msg_${Date.now()}`,
+      id: msgId,
       conversationId: activeConversation.id,
       senderId: currentUser.id,
       senderName: currentUser.name,
@@ -349,7 +382,6 @@ export default function App() {
       [activeConversation.id]: [...(prev[activeConversation.id] || []), newMsg],
     }));
 
-    // Update conversation lastMessage
     setConversations((prev) =>
       prev.map((c) =>
         c.id === activeConversation.id
@@ -360,6 +392,7 @@ export default function App() {
                 senderId: currentUser.id,
                 timestamp: newMsg.timestamp,
                 type: newMsg.type,
+                status: 'sent',
               },
               updatedAt: new Date().toISOString(),
             }
@@ -367,7 +400,63 @@ export default function App() {
       )
     );
 
-    // Business simulated response
+    // 1. Transition to 'delivered' (double grey checkmarks) after 400ms
+    setTimeout(() => {
+      setMessages((prev) => {
+        const list = prev[activeConversation.id] || [];
+        return {
+          ...prev,
+          [activeConversation.id]: list.map((m) =>
+            m.id === msgId && m.status === 'sent' ? { ...m, status: 'delivered' as const } : m
+          ),
+        };
+      });
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConversation.id && c.lastMessage.senderId === currentUser.id
+            ? {
+                ...c,
+                lastMessage: {
+                  ...c.lastMessage,
+                  status: c.lastMessage.status === 'read' ? 'read' : 'delivered',
+                },
+              }
+            : c
+        )
+      );
+    }, 450);
+
+    // 2. Transition to 'read' (double blue checkmarks) after 1100ms when recipient opens and views the message
+    setTimeout(() => {
+      setMessages((prev) => {
+        const list = prev[activeConversation.id] || [];
+        return {
+          ...prev,
+          [activeConversation.id]: list.map((m) =>
+            m.id === msgId || (m.senderId === currentUser.id && m.status !== 'read')
+              ? { ...m, status: 'read' as const }
+              : m
+          ),
+        };
+      });
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConversation.id && c.lastMessage.senderId === currentUser.id
+            ? {
+                ...c,
+                lastMessage: {
+                  ...c.lastMessage,
+                  status: 'read',
+                },
+              }
+            : c
+        )
+      );
+    }, 1100);
+
+    // 3. Simulated response from verified merchant or contact
     if (activeConversation.type === 'business') {
       const bizId = activeConversation.businessId;
       const biz = businesses.find((b) => b.id === bizId);
@@ -387,10 +476,17 @@ export default function App() {
             status: 'read',
           };
 
-          setMessages((p) => ({
-            ...p,
-            [activeConversation.id]: [...(p[activeConversation.id] || []), replyMsg],
-          }));
+          setMessages((p) => {
+            const list = p[activeConversation.id] || [];
+            // Ensure all user messages in this chat are marked as read
+            const allRead = list.map((m) =>
+              m.senderId === currentUser.id ? { ...m, status: 'read' as const } : m
+            );
+            return {
+              ...p,
+              [activeConversation.id]: [...allRead, replyMsg],
+            };
+          });
 
           setConversations((p) =>
             p.map((c) =>
@@ -402,25 +498,24 @@ export default function App() {
                       senderId: biz.id,
                       timestamp: replyMsg.timestamp,
                       type: 'text',
+                      status: 'read',
                     },
                     updatedAt: new Date().toISOString(),
                   }
                 : c
             )
           );
-        }, 1500);
+        }, 1600);
       }
     }
   };
 
-  // Inquiry Status update
   const handleUpdateInquiryStatus = (inquiryId: string, newStatus: InquiryStatus) => {
     setInquiries((prev) =>
       prev.map((inq) => (inq.id === inquiryId ? { ...inq, status: newStatus, updatedAt: new Date().toISOString() } : inq))
     );
   };
 
-  // Staff assignment
   const handleAssignStaff = (inquiryId: string, staffId: string) => {
     const assigned = staff.find((s) => s.id === staffId);
     setInquiries((prev) =>
@@ -437,10 +532,8 @@ export default function App() {
     );
   };
 
-  // Verification updates
   const handleUpdateVerification = (updatedBiz: Business) => {
     setBusinesses((prev) => prev.map((b) => (b.id === updatedBiz.id ? updatedBiz : b)));
-    // Also sync in conversations
     setConversations((prev) =>
       prev.map((c) => {
         if (c.businessId === updatedBiz.id) {
@@ -457,14 +550,12 @@ export default function App() {
     );
   };
 
-  // Toggle open for chat
   const handleToggleOpenForChat = (open: boolean) => {
     if (!myBusiness) return;
     const updated = { ...myBusiness, openForChat: open };
     handleUpdateVerification(updated);
   };
 
-  // Add Product to catalog
   const handleAddProduct = (prodData: Partial<Product>) => {
     if (!myBusiness) return;
     const newProd: Product = {
@@ -491,7 +582,6 @@ export default function App() {
     setProducts((prev) => [newProd, ...prev]);
   };
 
-  // Add Service
   const handleAddService = (srvData: Partial<Service>) => {
     if (!myBusiness) return;
     const newSrv: Service = {
@@ -513,7 +603,6 @@ export default function App() {
     setServices((prev) => [newSrv, ...prev]);
   };
 
-  // Reports
   const handleReport = (targetType: 'user' | 'business' | 'message', targetId: string) => {
     const targetName =
       targetType === 'business'
@@ -532,154 +621,26 @@ export default function App() {
       status: 'pending',
     };
     setReports((prev) => [newReport, ...prev]);
-    alert('Report submitted. Admin moderation team will review this listing.');
   };
 
-  // Block user
   const handleBlockUser = (targetId: string) => {
     setCurrentUser((prev) => ({
       ...prev,
       blockedUserIds: [...prev.blockedUserIds, targetId],
     }));
     setActiveConversation(null);
-    alert('Contact has been blocked.');
   };
 
-  // Unread count
   const unreadChatsCount = useMemo(() => {
     return conversations.reduce((acc, c) => acc + c.unreadCount, 0);
   }, [conversations]);
 
-  // Open inquiries count
   const openInquiriesCount = useMemo(() => {
     return inquiries.filter((inq) => inq.status === 'new' || inq.status === 'contacted').length;
   }, [inquiries]);
 
-  // Render the current view
-  const renderCurrentView = () => {
-    // 1. If currently inside a 1-on-1 Chat
-    if (activeConversation) {
-      const activeInquiry = inquiries.find(
-        (inq) => inq.conversationId === activeConversation.id || (activeConversation.businessId && inq.businessId === activeConversation.businessId)
-      );
-
-      return (
-        <ChatScreen
-          conversation={activeConversation}
-          messages={messages[activeConversation.id] || []}
-          currentUser={currentUser}
-          currentBusiness={myBusiness}
-          inquiry={activeInquiry}
-          onSendMessage={handleSendMessage}
-          onUpdateInquiryStatus={handleUpdateInquiryStatus}
-          onBack={() => setActiveConversation(null)}
-          onOpenBusinessProfile={(bizId) => {
-            const biz = businesses.find((b) => b.id === bizId);
-            if (biz) setSelectedBusiness(biz);
-          }}
-          onBlockUser={handleBlockUser}
-          onReport={handleReport}
-          lang={lang}
-        />
-      );
-    }
-
-    // 2. If viewing a Business Profile
-    if (selectedBusiness) {
-      return (
-        <BusinessProfileScreen
-          business={selectedBusiness}
-          products={products}
-          services={services}
-          onBack={() => setSelectedBusiness(null)}
-          onStartChat={(initText, prod, srv) => {
-            handleOpenOrCreateChatWith(
-              {
-                id: selectedBusiness.id,
-                name: selectedBusiness.name,
-                avatarUrl: selectedBusiness.logoUrl,
-                phoneNumber: selectedBusiness.phone,
-                isBusiness: true,
-                businessId: selectedBusiness.id,
-              },
-              initText,
-              prod,
-              srv
-            );
-          }}
-          onSelectProduct={(p) => setSelectedProduct(p)}
-          onSelectService={(s) => setSelectedService(s)}
-          lang={lang}
-        />
-      );
-    }
-
-    // 3. If viewing a Product Detail Modal
-    if (selectedProduct) {
-      const biz = businesses.find((b) => b.id === selectedProduct.businessId);
-      return (
-        <ProductDetailModal
-          product={selectedProduct}
-          business={biz}
-          onBack={() => setSelectedProduct(null)}
-          onChatAboutProduct={(prod) => {
-            handleOpenOrCreateChatWith(
-              {
-                id: prod.businessId,
-                name: prod.businessName,
-                isBusiness: true,
-                businessId: prod.businessId,
-              },
-              `I am interested in ${prod.name}.`,
-              prod
-            );
-          }}
-          onViewBusiness={(bizId) => {
-            const b = businesses.find((item) => item.id === bizId);
-            if (b) {
-              setSelectedProduct(null);
-              setSelectedBusiness(b);
-            }
-          }}
-          lang={lang}
-        />
-      );
-    }
-
-    // 4. If viewing a Service Detail Modal
-    if (selectedService) {
-      const biz = businesses.find((b) => b.id === selectedService.businessId);
-      return (
-        <ServiceDetailModal
-          service={selectedService}
-          business={biz}
-          onBack={() => setSelectedService(null)}
-          onChatAboutService={(srv) => {
-            handleOpenOrCreateChatWith(
-              {
-                id: srv.businessId,
-                name: srv.businessName,
-                isBusiness: true,
-                businessId: srv.businessId,
-              },
-              `I would like to inquire about ${srv.name}.`,
-              undefined,
-              srv
-            );
-          }}
-          onViewBusiness={(bizId) => {
-            const b = businesses.find((item) => item.id === bizId);
-            if (b) {
-              setSelectedService(null);
-              setSelectedBusiness(b);
-            }
-          }}
-          lang={lang}
-        />
-      );
-    }
-
-    // 5. Admin Portal view
+  // Main Left-pane view
+  const renderSidebarView = () => {
     if (viewMode === 'admin_portal') {
       return (
         <AdminPortalScreen
@@ -723,7 +684,6 @@ export default function App() {
       );
     }
 
-    // 6. Business Dashboard view
     if (currentTab === 'business' || viewMode === 'business_dashboard') {
       return (
         <BusinessDashboardScreen
@@ -736,7 +696,7 @@ export default function App() {
           onToggleOpenForChat={handleToggleOpenForChat}
           onSelectInquiry={(inq) => {
             const conv = conversations.find((c) => c.id === inq.conversationId);
-            if (conv) setActiveConversation(conv);
+            if (conv) handleSelectConversation(conv);
           }}
           onAssignStaff={handleAssignStaff}
           onAddProduct={handleAddProduct}
@@ -746,7 +706,6 @@ export default function App() {
       );
     }
 
-    // 7. Calls Tab (Reserved navigation architecture)
     if (currentTab === 'calls') {
       return (
         <div className="flex flex-col h-full bg-white">
@@ -754,19 +713,18 @@ export default function App() {
             <h1 className="font-semibold text-lg">{t.calls}</h1>
           </header>
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3 shadow-xs">
               <PhoneCall size={28} />
             </div>
-            <h3 className="font-semibold text-gray-800 text-sm mb-1">Encrypted Voice &amp; Video Calling</h3>
+            <h3 className="font-semibold text-gray-800 text-sm mb-1">Encrypted Voice Calling</h3>
             <p className="text-xs text-gray-500 max-w-xs leading-relaxed">
-              Call any verified business or contact directly from their profile without revealing your private mobile number.
+              Direct peer-to-peer audio connections with verified businesses and personal contacts.
             </p>
           </div>
         </div>
       );
     }
 
-    // 8. Updates Tab
     if (currentTab === 'updates') {
       return (
         <div className="flex flex-col h-full bg-white">
@@ -785,7 +743,6 @@ export default function App() {
                 Stores showing the 📍 Location Verified badge have completed on-premises physical GPS confirmation.
               </p>
             </div>
-
             <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-2xs space-y-1.5">
               <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded uppercase">
                 Merchant Update
@@ -802,7 +759,6 @@ export default function App() {
       );
     }
 
-    // 9. Profile & Settings Tab
     if (currentTab === 'profile') {
       return (
         <ProfileSettingsScreen
@@ -818,7 +774,7 @@ export default function App() {
       );
     }
 
-    // 10. Default: HomeScreen with Universal Search overlay when user types
+    // Default: HomeScreen with Universal Search overlay
     return (
       <div className="flex flex-col h-full relative overflow-hidden">
         <HomeScreen
@@ -828,16 +784,15 @@ export default function App() {
           onSearchChange={setSearchQuery}
           searchFilter={searchFilter}
           onFilterChange={setSearchFilter}
-          onSelectConversation={(conv) => setActiveConversation(conv)}
-          onOpenNewChat={() => setSearchQuery('Raj')}
+          onSelectConversation={handleSelectConversation}
+          onOpenNewChat={() => setShowNewChatModal(true)}
           onOpenLanguageModal={() => setShowLanguageModal(true)}
-          onOpenPersonaModal={() => setShowPersonaModal(true)}
+          onOpenMenuModal={() => setShowMenuModal(true)}
           onOpenApkModal={() => setShowApkModal(true)}
           onOpenAuthModal={() => setShowAuthModal(true)}
           lang={lang}
         />
 
-        {/* When user starts searching, display Universal Search Results overlay instantly */}
         {searchQuery.trim().length > 0 && (
           <div className="absolute inset-0 top-[110px] bg-white z-20 flex flex-col">
             <SearchOverlayScreen
@@ -846,7 +801,7 @@ export default function App() {
               onSelectPerson={(person) => {
                 const matchingConv = conversations.find((c) => c.id === person.conversationId);
                 if (matchingConv) {
-                  setActiveConversation(matchingConv);
+                  handleSelectConversation(matchingConv);
                   setSearchQuery('');
                 } else {
                   handleOpenOrCreateChatWith({
@@ -877,202 +832,237 @@ export default function App() {
     );
   };
 
+  // Main Active Detail View (Chat / Business Profile / Product Detail / Service Detail)
+  const renderDetailView = () => {
+    if (activeConversation) {
+      const activeInquiry = inquiries.find(
+        (inq) => inq.conversationId === activeConversation.id || (activeConversation.businessId && inq.businessId === activeConversation.businessId)
+      );
+
+      return (
+        <ChatScreen
+          conversation={activeConversation}
+          messages={messages[activeConversation.id] || []}
+          currentUser={currentUser}
+          currentBusiness={myBusiness}
+          inquiry={activeInquiry}
+          onSendMessage={handleSendMessage}
+          onUpdateInquiryStatus={handleUpdateInquiryStatus}
+          onBack={() => setActiveConversation(null)}
+          onOpenBusinessProfile={(bizId) => {
+            const biz = businesses.find((b) => b.id === bizId);
+            if (biz) setSelectedBusiness(biz);
+          }}
+          onBlockUser={handleBlockUser}
+          onReport={handleReport}
+          lang={lang}
+        />
+      );
+    }
+
+    if (selectedBusiness) {
+      return (
+        <BusinessProfileScreen
+          business={selectedBusiness}
+          products={products}
+          services={services}
+          onBack={() => setSelectedBusiness(null)}
+          onStartChat={(initText, prod, srv) => {
+            handleOpenOrCreateChatWith(
+              {
+                id: selectedBusiness.id,
+                name: selectedBusiness.name,
+                avatarUrl: selectedBusiness.logoUrl,
+                phoneNumber: selectedBusiness.phone,
+                isBusiness: true,
+                businessId: selectedBusiness.id,
+              },
+              initText,
+              prod,
+              srv
+            );
+          }}
+          onSelectProduct={(p) => setSelectedProduct(p)}
+          onSelectService={(s) => setSelectedService(s)}
+          lang={lang}
+        />
+      );
+    }
+
+    if (selectedProduct) {
+      const biz = businesses.find((b) => b.id === selectedProduct.businessId);
+      return (
+        <ProductDetailModal
+          product={selectedProduct}
+          business={biz}
+          onBack={() => setSelectedProduct(null)}
+          onChatAboutProduct={(prod) => {
+            handleOpenOrCreateChatWith(
+              {
+                id: prod.businessId,
+                name: prod.businessName,
+                isBusiness: true,
+                businessId: prod.businessId,
+              },
+              `I am interested in ${prod.name}.`,
+              prod
+            );
+          }}
+          onViewBusiness={(bizId) => {
+            const b = businesses.find((item) => item.id === bizId);
+            if (b) {
+              setSelectedProduct(null);
+              setSelectedBusiness(b);
+            }
+          }}
+          lang={lang}
+        />
+      );
+    }
+
+    if (selectedService) {
+      const biz = businesses.find((b) => b.id === selectedService.businessId);
+      return (
+        <ServiceDetailModal
+          service={selectedService}
+          business={biz}
+          onBack={() => setSelectedService(null)}
+          onChatAboutService={(srv) => {
+            handleOpenOrCreateChatWith(
+              {
+                id: srv.businessId,
+                name: srv.businessName,
+                isBusiness: true,
+                businessId: srv.businessId,
+              },
+              `I would like to inquire about ${srv.name}.`,
+              undefined,
+              srv
+            );
+          }}
+          onViewBusiness={(bizId) => {
+            const b = businesses.find((item) => item.id === bizId);
+            if (b) {
+              setSelectedService(null);
+              setSelectedBusiness(b);
+            }
+          }}
+          lang={lang}
+        />
+      );
+    }
+
+    // Default right-pane state for desktop (WhatsApp Web style welcome hero)
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#f0f2f5] border-b-8 border-emerald-700 select-none">
+        <div className="w-24 h-24 rounded-full bg-emerald-800 text-white flex items-center justify-center mb-6 shadow-xl relative">
+          <span className="text-4xl font-extrabold tracking-tight">S</span>
+          <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full shadow-md">
+            <ShieldCheck size={26} className="text-emerald-600" />
+          </div>
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Sampark Web</h2>
+        <p className="text-sm text-gray-600 max-w-md leading-relaxed mb-6">
+          Official messaging and verified business discovery platform. Direct communication with GST-registered and location-verified merchants.
+        </p>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNewChatModal(true)}
+            className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs transition-all shadow-md cursor-pointer flex items-center gap-2"
+          >
+            <MessageSquare size={16} />
+            <span>Start New Chat</span>
+          </button>
+          <button
+            onClick={() => setCurrentTab('business')}
+            className="px-5 py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer flex items-center gap-2"
+          >
+            <Store size={16} className="text-emerald-700" />
+            <span>My Store</span>
+          </button>
+        </div>
+
+        <div className="mt-12 flex items-center gap-1.5 text-xs text-gray-400">
+          <Lock size={13} />
+          <span>End-to-end encrypted · GST &amp; Geofence Verified</span>
+        </div>
+      </div>
+    );
+  };
+
+  const isDetailActive = Boolean(activeConversation || selectedBusiness || selectedProduct || selectedService);
+
   return (
-    <div className="min-h-screen bg-slate-900 text-gray-900 flex flex-col items-center justify-center font-sans antialiased selection:bg-emerald-100 p-0 sm:p-4">
-      {/* Top Ambient Bar (Hidden on actual mobile screens or standalone PWA) */}
-      {isPhoneFrame && (
-        <header className="w-full max-w-4xl px-4 py-2 hidden sm:flex items-center justify-between text-xs text-slate-400 select-none">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-200">Sampark</span>
-            <span className="text-slate-500">·</span>
-            <span>Universal Search &amp; Verified Business Discovery</span>
+    <div className="w-screen h-screen bg-gray-100 flex flex-col overflow-hidden font-sans antialiased selection:bg-emerald-100">
+      {/* Real Full-Screen Production Container */}
+      <div className="flex-1 flex overflow-hidden w-full h-full">
+        {/* Left Column (Sidebar / Master View): Full width on mobile, 420px on desktop */}
+        <aside
+          className={`h-full flex flex-col bg-white border-r border-gray-200 transition-all ${
+            isDetailActive ? 'hidden md:flex md:w-[400px] lg:w-[460px] shrink-0' : 'w-full md:w-[400px] lg:w-[460px] shrink-0'
+          }`}
+        >
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            {renderSidebarView()}
           </div>
 
-          <div className="flex items-center gap-2">
-            {currentUser.email ? (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700 font-medium"
-                title={`Signed in as ${currentUser.email}`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="truncate max-w-[130px]">{currentUser.email}</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium shadow-xs"
-                title="Sign in with Google / Gmail"
-              >
-                <Mail size={13} />
-                <span>Gmail Login</span>
-              </button>
-            )}
-            <button
-              onClick={() => setShowApkModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium shadow-xs"
-            >
-              <span>📥 Download APK</span>
-            </button>
-            <button
-              onClick={() => setIsPhoneFrame(!isPhoneFrame)}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700"
-              title="Toggle Android Device Frame"
-            >
-              {isPhoneFrame ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
-              <span>{isPhoneFrame ? 'Expand Viewport' : 'Android Frame'}</span>
-            </button>
-          </div>
-        </header>
-      )}
+          {/* Bottom Nav on Sidebar */}
+          {viewMode === 'main' && (
+            <BottomNav
+              currentTab={currentTab}
+              onTabChange={(tab) => {
+                setCurrentTab(tab);
+                setSearchQuery('');
+              }}
+              unreadChatsCount={unreadChatsCount}
+              openInquiriesCount={openInquiriesCount}
+              lang={lang}
+            />
+          )}
+        </aside>
 
-      {/* Main Container / Mobile Device Frame */}
-      <main
-        className={`w-full transition-all duration-300 flex flex-col overflow-hidden bg-white shadow-2xl ${
-          isPhoneFrame
-            ? 'max-w-[420px] h-[92vh] max-h-[880px] rounded-3xl border-8 border-slate-800 relative'
-            : 'w-full sm:max-w-4xl h-screen sm:h-[94vh] rounded-none sm:rounded-2xl border-0 sm:border sm:border-slate-800'
-        }`}
-      >
-        {/* Quick Install / Download Banner for Phone Visitors */}
-        {!isInstalled && (
-          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white px-3 py-2 flex items-center justify-between text-xs shrink-0 z-50 shadow-md">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">📲</span>
-              <div>
-                <p className="font-semibold text-xs leading-none">Sampark Android APK</p>
-                <p className="text-[10px] text-emerald-200 leading-tight">Official package (13 KB)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => downloadSamparkApk()}
-                className="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white font-bold px-3 py-1.5 rounded-md text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer"
-              >
-                <span>📥 Download APK</span>
-              </button>
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="bg-white/20 hover:bg-white/30 text-white font-medium px-2 py-1 rounded-md text-xs transition-all border border-white/20 shadow-xs flex items-center gap-1"
-                title="Google / Gmail Authentication"
-              >
-                <Mail size={12} />
-                <span>{currentUser.email ? 'Gmail' : 'Login'}</span>
-              </button>
-              <button
-                onClick={() => setShowApkModal(true)}
-                className="bg-white/20 hover:bg-white/30 text-white font-medium px-2 py-1 rounded-md text-xs transition-all border border-white/20 shadow-xs"
-              >
-                <span>Options</span>
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Right Column (Detail View): Full screen on mobile when active, remaining flex space on desktop */}
+        <main
+          className={`h-full flex-1 flex flex-col overflow-hidden ${
+            isDetailActive ? 'flex w-full' : 'hidden md:flex'
+          }`}
+        >
+          {renderDetailView()}
+        </main>
+      </div>
 
-        {/* Viewport Content */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          {renderCurrentView()}
-        </div>
+      {/* Real New Chat Modal */}
+      <NewChatModal
+        isOpen={showNewChatModal}
+        onClose={() => setShowNewChatModal(false)}
+        contacts={contacts}
+        businesses={businesses}
+        onStartChatWithContact={(target, msg) => {
+          handleOpenOrCreateChatWith(target, msg);
+        }}
+      />
 
-        {/* Bottom Navigation (Visible on main views when not in deep chat or modal) */}
-        {!activeConversation && !selectedBusiness && !selectedProduct && !selectedService && viewMode === 'main' && (
-          <BottomNav
-            currentTab={currentTab}
-            onTabChange={(tab) => {
-              setCurrentTab(tab);
-              setSearchQuery('');
-            }}
-            unreadChatsCount={unreadChatsCount}
-            openInquiriesCount={openInquiriesCount}
-            lang={lang}
-          />
-        )}
-      </main>
+      {/* Real App Menu Modal */}
+      <AppMenuModal
+        isOpen={showMenuModal}
+        onClose={() => setShowMenuModal(false)}
+        currentUser={currentUser}
+        currentBusiness={myBusiness}
+        lang={lang}
+        onOpenBusinessDashboard={() => {
+          setViewMode('business_dashboard');
+          setCurrentTab('business');
+        }}
+        onOpenVerificationWizard={() => setShowVerificationWizard(true)}
+        onOpenAdminPortal={() => setViewMode('admin_portal')}
+        onOpenLanguageModal={() => setShowLanguageModal(true)}
+        onOpenApkModal={() => setShowApkModal(true)}
+        onOpenAuthModal={() => setShowAuthModal(true)}
+      />
 
-      {/* Visual Install Guide Modal for Mobile Users */}
-      {showInstallGuide && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                  S
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-base">Install Sampark</h3>
-                  <p className="text-xs text-emerald-700 font-medium">Add directly to your Android phone</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowInstallGuide(false)}
-                className="text-gray-400 hover:text-gray-600 text-sm font-semibold p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-gray-700">
-              {/* Direct APK Download Button */}
-              <button
-                onClick={() => {
-                  setShowInstallGuide(false);
-                  downloadSamparkApk();
-                }}
-                className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
-              >
-                <span>📥 Download Sampark.apk Directly (13 KB)</span>
-              </button>
-
-              <div className="flex items-center gap-2 my-1 text-gray-400">
-                <div className="h-px bg-gray-200 flex-1" />
-                <span className="text-[10px] uppercase font-bold text-gray-400">or add via chrome</span>
-                <div className="h-px bg-gray-200 flex-1" />
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-                <strong>Important:</strong> If you opened this link from Gmail or WhatsApp, tap the <strong>three dots (⋮)</strong> and choose <strong>"Open in Chrome"</strong> first.
-              </div>
-
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
-                  1
-                </span>
-                <p>
-                  Inside <strong className="text-gray-900 font-semibold">Google Chrome</strong>, tap the <strong className="text-gray-900 font-semibold">three dots (⋮)</strong> (located at the bottom-right or top-right of your screen).
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
-                  2
-                </span>
-                <p>
-                  Scroll down and tap <strong className="text-gray-900 font-semibold">"Install app"</strong> (or <strong className="text-gray-900 font-semibold">"Add to Home screen"</strong>).
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
-                  3
-                </span>
-                <p>
-                  Tap <strong className="text-gray-900 font-semibold">Install</strong>. The Sampark app icon will be added to your home screen!
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowInstallGuide(false)}
-              className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs transition-colors shadow-sm"
-            >
-              Got it, let me install!
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Android App & APK Download Options Modal */}
+      {/* Android App & APK Download Modal */}
       <ApkDownloadModal
         isOpen={showApkModal}
         onClose={() => setShowApkModal(false)}
@@ -1092,7 +1082,7 @@ export default function App() {
 
       {/* Language Switch Modal */}
       {showLanguageModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-xs rounded-2xl p-4 shadow-xl space-y-3">
             <h3 className="font-bold text-sm text-gray-900">Choose Language / ભાષા / भाषा</h3>
             <div className="space-y-1.5 text-xs">
@@ -1128,63 +1118,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Persona Switch Modal */}
-      {showPersonaModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-xs rounded-2xl p-4 shadow-xl space-y-3">
-            <h3 className="font-bold text-sm text-gray-900">Switch Persona Mode</h3>
-            <div className="space-y-2 text-xs">
-              <button
-                onClick={() => {
-                  setViewMode('main');
-                  setCurrentTab('chats');
-                  setShowPersonaModal(false);
-                }}
-                className="w-full text-left p-2.5 bg-gray-50 hover:bg-emerald-50 rounded-xl transition-colors"
-              >
-                <p className="font-bold text-gray-900">👤 Customer Mode</p>
-                <p className="text-[11px] text-gray-500">Ajit Sharma (Search, Discover &amp; Chat)</p>
-              </button>
-
-              <button
-                onClick={() => {
-                  setViewMode('main');
-                  setCurrentTab('business');
-                  setShowPersonaModal(false);
-                }}
-                className="w-full text-left p-2.5 bg-gray-50 hover:bg-emerald-50 rounded-xl transition-colors"
-              >
-                <p className="font-bold text-gray-900">🏪 Business Owner Mode</p>
-                <p className="text-[11px] text-gray-500">ABC Furniture (Inquiries, Verification, Catalog)</p>
-              </button>
-
-              <button
-                onClick={() => {
-                  setViewMode('admin_portal');
-                  setShowPersonaModal(false);
-                }}
-                className="w-full text-left p-2.5 bg-slate-900 text-white rounded-xl transition-colors"
-              >
-                <p className="font-bold">🛡️ Platform Admin Mode</p>
-                <p className="text-[11px] text-slate-300">Verification Audit, Moderation, Search Analytics</p>
-              </button>
-            </div>
-            <button
-              onClick={() => setShowPersonaModal(false)}
-              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Gmail / Google Authentication Modal */}
+      {/* Authentication Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         currentUser={currentUser}
-        onUserChange={(updatedUser) => {
+        onUserChange={(updatedUser: User) => {
           setCurrentUser(updatedUser);
         }}
       />

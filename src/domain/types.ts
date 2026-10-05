@@ -238,6 +238,7 @@ export interface Conversation {
     senderId: string;
     timestamp: string;
     type: MessageType;
+    status?: 'sent' | 'delivered' | 'read';
   };
   unreadCount: number;
   inquiryId?: string;

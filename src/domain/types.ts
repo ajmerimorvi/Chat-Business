@@ -6,6 +6,7 @@ export interface User {
   id: string;
   name: string;
   phoneNumber: string;
+  email?: string;
   avatarUrl?: string;
   bio?: string;
   language: Language;
@@ -14,6 +15,7 @@ export interface User {
   staffAtBusinessIds: string[];
   blockedUserIds: string[];
   blockedBusinessIds: string[];
+  authProvider?: 'phone' | 'google' | 'guest';
 }
 
 export interface Contact {
@@ -124,6 +126,17 @@ export interface Service {
   searchKeywords: string[];
 }
 
+export interface Quotation {
+  quotationNumber: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  gstRatePct: number;
+  totalAmount: number;
+  status: 'sent' | 'accepted' | 'declined' | 'revision_requested';
+  validUntil: string;
+}
+
 export type MessageType = 
   | 'text' 
   | 'image' 
@@ -131,7 +144,8 @@ export type MessageType =
   | 'location' 
   | 'product_card' 
   | 'service_card' 
-  | 'inquiry_context';
+  | 'inquiry_context'
+  | 'quotation';
 
 export interface Message {
   id: string;
@@ -164,6 +178,7 @@ export interface Message {
     status: InquiryStatus;
     title: string;
   };
+  quotation?: Quotation;
   replyToMessage?: {
     id: string;
     senderName: string;

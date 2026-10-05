@@ -41,8 +41,23 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
 }) => {
   const t = getTranslation(lang);
 
+  const [showReviewModal, setShowReviewModal] = React.useState(false);
+  const [selectedStars, setSelectedStars] = React.useState(5);
+  const [reviewComment, setReviewComment] = React.useState('');
+  const [reviewSubmitted, setReviewSubmitted] = React.useState(false);
+
   const businessProducts = products.filter((p) => p.businessId === business.id);
   const businessServices = services.filter((s) => s.businessId === business.id);
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    setReviewSubmitted(true);
+    setTimeout(() => {
+      setShowReviewModal(false);
+      setReviewSubmitted(false);
+      setReviewComment('');
+    }, 1000);
+  };
 
   return (
     <div className="flex flex-col h-full bg-white overflow-y-auto">
@@ -99,11 +114,15 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md text-amber-800 text-xs font-bold shrink-0">
+          <button
+            onClick={() => setShowReviewModal(true)}
+            className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md text-amber-800 text-xs font-bold shrink-0 transition-colors cursor-pointer"
+            title="Rate & Review Business"
+          >
             <Star size={14} className="fill-amber-400 text-amber-400" />
             <span>{business.rating}</span>
             <span className="text-[10px] text-amber-600 font-normal">({business.reviewCount})</span>
-          </div>
+          </button>
         </div>
 
         {/* Verification Badges (Core differentiator) */}
@@ -284,6 +303,73 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Customer Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xs rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <h3 className="font-bold text-sm text-gray-900">Review {business.name}</h3>
+              <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-3 text-xs">
+              <div>
+                <label className="font-medium text-gray-700 block mb-1">Your Rating</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      key={star}
+                      onClick={() => setSelectedStars(star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                    >
+                      <Star
+                        size={22}
+                        className={star <= selectedStars ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-medium text-gray-700 block mb-1">Feedback / Experience</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Share details about pricing, quality, and service..."
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              {reviewSubmitted ? (
+                <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg text-center font-semibold">
+                  Thank you! Your verified review has been recorded.
+                </div>
+              ) : (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowReviewModal(false)}
+                    className="flex-1 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg shadow-2xs"
+                  >
+                    Submit Review
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

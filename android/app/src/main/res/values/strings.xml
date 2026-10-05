@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Sampark</string>
+    <string name="search_hint">Search chats, people, businesses, products…</string>
+    <string name="tab_chats">Chats</string>
+    <string name="tab_calls">Calls</string>
+    <string name="tab_business">Business</string>
+    <string name="tab_profile">Profile</string>
+</resources>

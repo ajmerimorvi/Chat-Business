@@ -25,7 +25,25 @@ export const SearchOverlayScreen: React.FC<SearchOverlayScreenProps> = ({
   lang = 'en',
 }) => {
   const t = getTranslation(lang);
-  const { contactsAndChats, businesses, products, services, totalCount } = results;
+  const [verifiedOnly, setVerifiedOnly] = React.useState(false);
+  const [distanceFilter, setDistanceFilter] = React.useState<'all' | '5km' | '15km'>('all');
+
+  const { contactsAndChats, businesses: rawBusinesses, products: rawProducts, services: rawServices, totalCount } = results;
+
+  const businesses = React.useMemo(() => {
+    return rawBusinesses.filter(({ business }) => {
+      if (verifiedOnly && business.verification.level === 0) return false;
+      return true;
+    });
+  }, [rawBusinesses, verifiedOnly]);
+
+  const products = React.useMemo(() => {
+    return rawProducts.filter(() => true);
+  }, [rawProducts]);
+
+  const services = React.useMemo(() => {
+    return rawServices.filter(() => true);
+  }, [rawServices]);
 
   const showPeople = (filter === 'all' || filter === 'people') && contactsAndChats.length > 0;
   const showBusinesses = (filter === 'all' || filter === 'businesses') && businesses.length > 0;
@@ -48,6 +66,26 @@ export const SearchOverlayScreen: React.FC<SearchOverlayScreenProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50/60 pb-16">
+      {/* Refine Tools Bar */}
+      <div className="px-3 py-1.5 bg-gray-100/70 border-b border-gray-200/60 flex items-center justify-between text-[11px]">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setVerifiedOnly(!verifiedOnly)}
+            className={`px-2 py-0.5 rounded font-medium border transition-colors flex items-center gap-1 ${
+              verifiedOnly
+                ? 'bg-emerald-700 text-white border-emerald-800'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <span>✓ Verified Only</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 text-gray-500">
+          <MapPin size={12} className="text-gray-400" />
+          <span>Rajkot Area</span>
+        </div>
+      </div>
       {/* 1. CHATS & CONTACTS SECTION */}
       {showPeople && (
         <section className="mb-2 bg-white border-y border-gray-100 shadow-2xs">

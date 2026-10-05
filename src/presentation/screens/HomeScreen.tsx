@@ -3,7 +3,7 @@ import { Conversation, Language, User } from '../../domain/types';
 import { getTranslation } from '../i18n/translations';
 import { UniversalSearchBar } from '../components/UniversalSearchBar';
 import { VerificationBadge } from '../components/VerificationBadge';
-import { Check, CheckCheck, MessageSquarePlus, Store, MoreVertical, Globe, ShieldCheck } from 'lucide-react';
+import { Check, CheckCheck, MessageSquarePlus, Store, MoreVertical, Globe, ShieldCheck, Download, Mail } from 'lucide-react';
 
 interface HomeScreenProps {
   conversations: Conversation[];
@@ -16,6 +16,8 @@ interface HomeScreenProps {
   onOpenNewChat: () => void;
   onOpenLanguageModal: () => void;
   onOpenPersonaModal: () => void;
+  onOpenApkModal?: () => void;
+  onOpenAuthModal?: () => void;
   lang?: Language;
 }
 
@@ -30,6 +32,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenNewChat,
   onOpenLanguageModal,
   onOpenPersonaModal,
+  onOpenApkModal,
+  onOpenAuthModal,
   lang = 'en',
 }) => {
   const t = getTranslation(lang);
@@ -49,6 +53,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 text-emerald-100">
+          {onOpenAuthModal && (
+            <button
+              onClick={onOpenAuthModal}
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs px-2 font-medium border shadow-2xs ${
+                currentUser.email
+                  ? 'bg-emerald-700/90 hover:bg-emerald-600 border-emerald-500 text-white'
+                  : 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white'
+              }`}
+              title={currentUser.email ? `Gmail: ${currentUser.email}` : 'Sign In with Gmail'}
+            >
+              {currentUser.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+              ) : (
+                <Mail size={13} />
+              )}
+              <span className="text-[11px] font-bold">
+                {currentUser.email ? 'Gmail' : 'Login'}
+              </span>
+            </button>
+          )}
+
+          {onOpenApkModal && (
+            <button
+              onClick={onOpenApkModal}
+              className="p-1.5 bg-emerald-700/80 hover:bg-emerald-600 rounded-lg transition-colors flex items-center gap-1 text-xs px-2 font-medium border border-emerald-500 shadow-2xs"
+              title="Download Android APK"
+            >
+              <Download size={14} />
+              <span className="text-[11px] font-bold">APK</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenLanguageModal}
             className="p-2 hover:bg-emerald-700/60 rounded-full transition-colors flex items-center gap-1 text-xs"

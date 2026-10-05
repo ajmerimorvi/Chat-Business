@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "business_owner", "staff", "admin"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "role"]
+    },
+    "businesses": {
+      "title": "Business",
+      "description": "Verified business entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "subcategory": { "type": "string" },
+        "businessType": { "type": "string" },
+        "description": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "logoUrl": { "type": "string" },
+        "coverImageUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "openForChat": { "type": "boolean" },
+        "plan": { "type": "string", "enum": ["free", "paid"] },
+        "activeCustomerConversationsCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "name", "category", "city"]
+    },
+    "products": {
+      "title": "Product",
+      "description": "Catalog item sold by a business",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "priceOnRequest": { "type": "boolean" },
+        "imageUrl": { "type": "string" },
+        "available": { "type": "boolean" }
+      },
+      "required": ["id", "businessId", "name", "price"]
+    },
+    "services": {
+      "title": "Service",
+      "description": "Service offered by a business",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "startingPrice": { "type": "number" },
+        "available": { "type": "boolean" }
+      },
+      "required": ["id", "businessId", "name", "startingPrice"]
+    },
+    "conversations": {
+      "title": "Conversation",
+      "description": "Direct or business chat channel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participantIds": { "type": "string" },
+        "businessId": { "type": "string" },
+        "lastMessageText": { "type": "string" },
+        "lastMessageTimestamp": { "type": "string" },
+        "unreadCount": { "type": "number" }
+      },
+      "required": ["id", "participantIds"]
+    },
+    "messages": {
+      "title": "Message",
+      "description": "Individual message inside a conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "type": { "type": "string" },
+        "text": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "conversationId", "senderId", "type"]
+    },
+    "inquiries": {
+      "title": "Inquiry",
+      "description": "Structured commercial inquiry for products or services",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "businessId": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityTitle": { "type": "string" },
+        "requirementNote": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "customerId", "businessId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profile documents"
+    },
+    "/businesses/{businessId}": {
+      "schema": "businesses",
+      "description": "Verified business listings"
+    },
+    "/products/{productId}": {
+      "schema": "products",
+      "description": "Products associated with businesses"
+    },
+    "/services/{serviceId}": {
+      "schema": "services",
+      "description": "Services associated with businesses"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "conversations",
+      "description": "User and business conversations"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "messages",
+      "description": "Messages belonging to a conversation"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "inquiries",
+      "description": "Customer inquiry records"
+    }
+  }
+}

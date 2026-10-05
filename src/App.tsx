@@ -37,6 +37,10 @@ import { BusinessDashboardScreen } from './presentation/screens/BusinessDashboar
 import { VerificationWizardModal } from './presentation/screens/VerificationWizardModal';
 import { AdminPortalScreen } from './presentation/screens/AdminPortalScreen';
 import { ProfileSettingsScreen } from './presentation/screens/ProfileSettingsScreen';
+import { ApkDownloadModal } from './presentation/components/ApkDownloadModal';
+import { AuthModal } from './presentation/components/AuthModal';
+import { subscribeToAuthChanges } from './services/authService';
+import { downloadSamparkApk } from './utils/apkDownloader';
 import { BottomNav, NavTab } from './presentation/components/BottomNav';
 import {
   Smartphone,
@@ -50,6 +54,7 @@ import {
   Clock,
   Sparkles,
   Search,
+  Mail,
 } from 'lucide-react';
 
 export default function App() {
@@ -90,7 +95,64 @@ export default function App() {
   const [showVerificationWizard, setShowVerificationWizard] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
+  const [showApkModal, setShowApkModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [isPhoneFrame, setIsPhoneFrame] = useState(true);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  // Auto-subscribe to Firebase Auth state for Google/Gmail logins
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges((fbUser) => {
+      if (fbUser) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          id: fbUser.uid,
+          name: fbUser.displayName || prev.name,
+          email: fbUser.email || undefined,
+          avatarUrl: fbUser.photoURL || prev.avatarUrl,
+          authProvider: 'google',
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Auto-detect mobile devices to remove frame simulation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth <= 640 || window.matchMedia('(display-mode: standalone)').matches) {
+        setIsPhoneFrame(false);
+      }
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        setIsInstalled(true);
+      }
+    }
+  }, []);
+
+  // Listen for native Android PWA install prompt
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice?.outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setIsInstalled(true);
+      }
+    } else {
+      setShowInstallGuide(true);
+    }
+  };
 
   const t = getTranslation(lang);
 
@@ -750,6 +812,8 @@ export default function App() {
           onLanguageChange={setLang}
           onOpenAdminPortal={() => setViewMode('admin_portal')}
           onOpenBusinessDashboard={() => setCurrentTab('business')}
+          onOpenApkModal={() => setShowApkModal(true)}
+          onOpenAuthModal={() => setShowAuthModal(true)}
         />
       );
     }
@@ -768,6 +832,8 @@ export default function App() {
           onOpenNewChat={() => setSearchQuery('Raj')}
           onOpenLanguageModal={() => setShowLanguageModal(true)}
           onOpenPersonaModal={() => setShowPersonaModal(true)}
+          onOpenApkModal={() => setShowApkModal(true)}
+          onOpenAuthModal={() => setShowAuthModal(true)}
           lang={lang}
         />
 
@@ -812,44 +878,97 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-gray-900 flex flex-col items-center justify-center font-sans antialiased selection:bg-emerald-100">
-      {/* Top Ambient Bar (Allows switching frame vs fullscreen) */}
-      <header className="w-full max-w-4xl px-4 py-2 flex items-center justify-between text-xs text-slate-400 select-none">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-semibold text-slate-200">Sampark</span>
-          <span className="text-slate-500">·</span>
-          <span>Universal Search &amp; Verified Business Discovery</span>
-        </div>
+    <div className="min-h-screen bg-slate-900 text-gray-900 flex flex-col items-center justify-center font-sans antialiased selection:bg-emerald-100 p-0 sm:p-4">
+      {/* Top Ambient Bar (Hidden on actual mobile screens or standalone PWA) */}
+      {isPhoneFrame && (
+        <header className="w-full max-w-4xl px-4 py-2 hidden sm:flex items-center justify-between text-xs text-slate-400 select-none">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-slate-200">Sampark</span>
+            <span className="text-slate-500">·</span>
+            <span>Universal Search &amp; Verified Business Discovery</span>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsPhoneFrame(!isPhoneFrame)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700"
-            title="Toggle Android Device Frame"
-          >
-            {isPhoneFrame ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
-            <span>{isPhoneFrame ? 'Expand Viewport' : 'Android Frame'}</span>
-          </button>
-        </div>
-      </header>
+          <div className="flex items-center gap-2">
+            {currentUser.email ? (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700 font-medium"
+                title={`Signed in as ${currentUser.email}`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="truncate max-w-[130px]">{currentUser.email}</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium shadow-xs"
+                title="Sign in with Google / Gmail"
+              >
+                <Mail size={13} />
+                <span>Gmail Login</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowApkModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium shadow-xs"
+            >
+              <span>📥 Download APK</span>
+            </button>
+            <button
+              onClick={() => setIsPhoneFrame(!isPhoneFrame)}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700"
+              title="Toggle Android Device Frame"
+            >
+              {isPhoneFrame ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+              <span>{isPhoneFrame ? 'Expand Viewport' : 'Android Frame'}</span>
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main Container / Mobile Device Frame */}
       <main
         className={`w-full transition-all duration-300 flex flex-col overflow-hidden bg-white shadow-2xl ${
           isPhoneFrame
             ? 'max-w-[420px] h-[92vh] max-h-[880px] rounded-3xl border-8 border-slate-800 relative'
-            : 'max-w-4xl h-[92vh] rounded-2xl border border-slate-800'
+            : 'w-full sm:max-w-4xl h-screen sm:h-[94vh] rounded-none sm:rounded-2xl border-0 sm:border sm:border-slate-800'
         }`}
       >
-        {/* Android Mock Status Bar */}
-        <div className="bg-emerald-950 text-white px-4 py-1 flex items-center justify-between text-[11px] font-medium tracking-tight select-none shrink-0 z-40">
-          <span>09:41</span>
-          <div className="flex items-center gap-2">
-            <span>5G</span>
-            <span>88%</span>
+        {/* Quick Install / Download Banner for Phone Visitors */}
+        {!isInstalled && (
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white px-3 py-2 flex items-center justify-between text-xs shrink-0 z-50 shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">📲</span>
+              <div>
+                <p className="font-semibold text-xs leading-none">Sampark Android APK</p>
+                <p className="text-[10px] text-emerald-200 leading-tight">Official package (13 KB)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => downloadSamparkApk()}
+                className="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white font-bold px-3 py-1.5 rounded-md text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+              >
+                <span>📥 Download APK</span>
+              </button>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="bg-white/20 hover:bg-white/30 text-white font-medium px-2 py-1 rounded-md text-xs transition-all border border-white/20 shadow-xs flex items-center gap-1"
+                title="Google / Gmail Authentication"
+              >
+                <Mail size={12} />
+                <span>{currentUser.email ? 'Gmail' : 'Login'}</span>
+              </button>
+              <button
+                onClick={() => setShowApkModal(true)}
+                className="bg-white/20 hover:bg-white/30 text-white font-medium px-2 py-1 rounded-md text-xs transition-all border border-white/20 shadow-xs"
+              >
+                <span>Options</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Viewport Content */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -870,6 +989,96 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Visual Install Guide Modal for Mobile Users */}
+      {showInstallGuide && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                  S
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Install Sampark</h3>
+                  <p className="text-xs text-emerald-700 font-medium">Add directly to your Android phone</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm font-semibold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-gray-700">
+              {/* Direct APK Download Button */}
+              <button
+                onClick={() => {
+                  setShowInstallGuide(false);
+                  downloadSamparkApk();
+                }}
+                className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
+              >
+                <span>📥 Download Sampark.apk Directly (13 KB)</span>
+              </button>
+
+              <div className="flex items-center gap-2 my-1 text-gray-400">
+                <div className="h-px bg-gray-200 flex-1" />
+                <span className="text-[10px] uppercase font-bold text-gray-400">or add via chrome</span>
+                <div className="h-px bg-gray-200 flex-1" />
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                <strong>Important:</strong> If you opened this link from Gmail or WhatsApp, tap the <strong>three dots (⋮)</strong> and choose <strong>"Open in Chrome"</strong> first.
+              </div>
+
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  1
+                </span>
+                <p>
+                  Inside <strong className="text-gray-900 font-semibold">Google Chrome</strong>, tap the <strong className="text-gray-900 font-semibold">three dots (⋮)</strong> (located at the bottom-right or top-right of your screen).
+                </p>
+              </div>
+
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  2
+                </span>
+                <p>
+                  Scroll down and tap <strong className="text-gray-900 font-semibold">"Install app"</strong> (or <strong className="text-gray-900 font-semibold">"Add to Home screen"</strong>).
+                </p>
+              </div>
+
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  3
+                </span>
+                <p>
+                  Tap <strong className="text-gray-900 font-semibold">Install</strong>. The Sampark app icon will be added to your home screen!
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowInstallGuide(false)}
+              className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs transition-colors shadow-sm"
+            >
+              Got it, let me install!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Android App & APK Download Options Modal */}
+      <ApkDownloadModal
+        isOpen={showApkModal}
+        onClose={() => setShowApkModal(false)}
+        onInstallPwa={handleInstallApp}
+        isInstallable={!isInstalled}
+      />
 
       {/* Verification Wizard Modal */}
       {showVerificationWizard && myBusiness && (
@@ -969,6 +1178,16 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Gmail / Google Authentication Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        currentUser={currentUser}
+        onUserChange={(updatedUser) => {
+          setCurrentUser(updatedUser);
+        }}
+      />
     </div>
   );
 }

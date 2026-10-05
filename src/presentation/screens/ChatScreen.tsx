@@ -61,11 +61,69 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [showAttachments, setShowAttachments] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showQuotationModal, setShowQuotationModal] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Quotation form state
+  const [quoteItem, setQuoteItem] = useState(inquiry?.entityTitle || 'Custom Order');
+  const [quoteQty, setQuoteQty] = useState(1);
+  const [quotePrice, setQuotePrice] = useState(12500);
+  const [quoteGst, setQuoteGst] = useState(18);
+
   const isBusinessChat = conversation.type === 'business' || conversation.otherParticipant.isBusiness;
   const isMeBusinessOwner = currentBusiness && currentBusiness.id === conversation.businessId;
+
+  const handleSendQuotation = (e: React.FormEvent) => {
+    e.preventDefault();
+    const subtotal = quoteQty * quotePrice;
+    const gstAmt = (subtotal * quoteGst) / 100;
+    const grandTotal = subtotal + gstAmt;
+
+    const quotationData = {
+      quotationNumber: `QT-${Date.now().toString().slice(-4)}`,
+      itemName: quoteItem,
+      quantity: quoteQty,
+      unitPrice: quotePrice,
+      gstRatePct: quoteGst,
+      totalAmount: grandTotal,
+      status: 'sent' as const,
+      validUntil: '7 days from issue',
+    };
+
+    onSendMessage({
+      conversationId: conversation.id,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      type: 'quotation',
+      text: `Formal Quotation: ${quoteItem} - ₹${grandTotal.toLocaleString('en-IN')}`,
+      quotation: quotationData,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'sent',
+    });
+
+    if (inquiry && onUpdateInquiryStatus) {
+      onUpdateInquiryStatus(inquiry.id, 'quotation_sent');
+    }
+
+    setShowQuotationModal(false);
+  };
+
+  const handleUpdateQuoteStatus = (msgId: string, status: 'accepted' | 'revision_requested') => {
+    onSendMessage({
+      conversationId: conversation.id,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      type: 'text',
+      text: status === 'accepted' ? '✅ I have accepted the quotation.' : '🔄 I would like to request changes to this quotation.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'sent',
+    });
+
+    if (inquiry && onUpdateInquiryStatus) {
+      onUpdateInquiryStatus(inquiry.id, status === 'accepted' ? 'converted' : 'follow_up');
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -271,19 +329,29 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               {inquiry.status.replace('_', ' ')}
             </span>
 
-            {/* If business owner, allow status transition */}
-            {isMeBusinessOwner && onUpdateInquiryStatus && (
-              <select
-                value={inquiry.status}
-                onChange={(e) => onUpdateInquiryStatus(inquiry.id, e.target.value as InquiryStatus)}
-                className="text-[11px] bg-white border border-amber-300 rounded px-1.5 py-0.5 text-gray-700 focus:outline-hidden"
-              >
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="quotation_sent">Quotation Sent</option>
-                <option value="converted">Converted</option>
-                <option value="closed">Closed</option>
-              </select>
+            {/* If business owner, allow status transition & quotation */}
+            {isMeBusinessOwner && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowQuotationModal(true)}
+                  className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-medium text-[10px] transition-colors"
+                >
+                  + Quotation
+                </button>
+                {onUpdateInquiryStatus && (
+                  <select
+                    value={inquiry.status}
+                    onChange={(e) => onUpdateInquiryStatus(inquiry.id, e.target.value as InquiryStatus)}
+                    className="text-[11px] bg-white border border-amber-300 rounded px-1.5 py-0.5 text-gray-700 focus:outline-hidden"
+                  >
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="quotation_sent">Quotation Sent</option>
+                    <option value="converted">Converted</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -339,6 +407,56 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         ₹{msg.productRef.price.toLocaleString('en-IN')}
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {/* Official Quotation Card inside Message */}
+                {msg.type === 'quotation' && msg.quotation && (
+                  <div className="mb-2 p-3 bg-white border-2 border-emerald-600 rounded-xl shadow-xs text-xs space-y-2 text-gray-800">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                        <FileText size={16} />
+                        <span>ESTIMATE {msg.quotation.quotationNumber}</span>
+                      </div>
+                      <span className="text-[10px] bg-emerald-50 text-emerald-800 font-semibold px-2 py-0.5 rounded capitalize">
+                        {msg.quotation.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="font-semibold text-gray-900 text-sm">{msg.quotation.itemName}</p>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Quantity: {msg.quotation.quantity}</span>
+                        <span>₹{msg.quotation.unitPrice.toLocaleString('en-IN')} / unit</span>
+                      </div>
+                      <div className="flex justify-between text-gray-500 text-[11px]">
+                        <span>GST ({msg.quotation.gstRatePct}%):</span>
+                        <span>₹{Math.round((msg.quotation.quantity * msg.quotation.unitPrice * msg.quotation.gstRatePct) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-900 font-bold text-sm pt-1 border-t border-gray-200">
+                        <span>Grand Total:</span>
+                        <span>₹{msg.quotation.totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400">Valid for {msg.quotation.validUntil}</p>
+                    </div>
+
+                    {/* Customer Action Buttons if sent by business */}
+                    {!isMine && (
+                      <div className="flex gap-2 pt-2 border-t border-gray-100">
+                        <button
+                          onClick={() => handleUpdateQuoteStatus(msg.id, 'revision_requested')}
+                          className="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-xs transition-colors"
+                        >
+                          Request Revision
+                        </button>
+                        <button
+                          onClick={() => handleUpdateQuoteStatus(msg.id, 'accepted')}
+                          className="flex-1 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors"
+                        >
+                          Accept Quotation
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -462,19 +580,133 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </button>
 
           {isBusinessChat && (
-            <button
-              onClick={() => {
-                setShowQuickReplies(true);
-                setShowAttachments(false);
-              }}
-              className="flex flex-col items-center gap-1.5 p-2 rounded-lg hover:bg-amber-50 text-amber-700"
-            >
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <Sparkles size={20} />
-              </div>
-              <span>Replies</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setShowQuotationModal(true);
+                  setShowAttachments(false);
+                }}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-lg hover:bg-emerald-50 text-emerald-800"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <FileText size={20} />
+                </div>
+                <span>Quotation</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowQuickReplies(true);
+                  setShowAttachments(false);
+                }}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-lg hover:bg-amber-50 text-amber-700"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Sparkles size={20} />
+                </div>
+                <span>Replies</span>
+              </button>
+            </>
           )}
+        </div>
+      )}
+
+      {/* Quotation Creation Modal */}
+      {showQuotationModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-4 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <h3 className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                <FileText size={16} className="text-emerald-700" />
+                <span>Create Official Quotation</span>
+              </h3>
+              <button onClick={() => setShowQuotationModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+
+            <form onSubmit={handleSendQuotation} className="space-y-2.5 text-xs">
+              <div>
+                <label className="font-medium text-gray-700 block mb-0.5">Item / Service Name</label>
+                <input
+                  type="text"
+                  required
+                  value={quoteItem}
+                  onChange={(e) => setQuoteItem(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-medium text-gray-700 block mb-0.5">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={quoteQty}
+                    onChange={(e) => setQuoteQty(parseInt(e.target.value) || 1)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-medium text-gray-700 block mb-0.5">Unit Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={quotePrice}
+                    onChange={(e) => setQuotePrice(parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-medium text-gray-700 block mb-0.5">GST Rate (%)</label>
+                <select
+                  value={quoteGst}
+                  onChange={(e) => setQuoteGst(parseInt(e.target.value) || 0)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-hidden"
+                >
+                  <option value="0">0% (Nil / Excluded)</option>
+                  <option value="5">5% GST</option>
+                  <option value="12">12% GST</option>
+                  <option value="18">18% GST (Standard)</option>
+                  <option value="28">28% GST</option>
+                </select>
+              </div>
+
+              <div className="p-2.5 bg-gray-50 rounded-lg text-xs space-y-1">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal:</span>
+                  <span>₹{(quoteQty * quotePrice).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-gray-500">
+                  <span>GST ({quoteGst}%):</span>
+                  <span>₹{Math.round(((quoteQty * quotePrice * quoteGst) / 100)).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between font-bold text-emerald-800 pt-1 border-t border-gray-200">
+                  <span>Grand Total:</span>
+                  <span>₹{Math.round(quoteQty * quotePrice + (quoteQty * quotePrice * quoteGst) / 100).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowQuotationModal(false)}
+                  className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg shadow-2xs"
+                >
+                  Send Quotation
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

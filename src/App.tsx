@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  CURRENT_USER,
+  INITIAL_BUSINESSES,
+  INITIAL_PRODUCTS,
+  INITIAL_SERVICES,
 } from './repositories/initialData';
 import {
   User,
@@ -35,6 +37,7 @@ import { AppMenuModal } from './presentation/components/AppMenuModal';
 import { subscribeToAuthChanges, getCurrentAuthUser } from './services/authService';
 import { localDb } from './services/localDb';
 import { firestoreChatService } from './services/firestoreChatService';
+import { useAuth } from './presentation/context/AuthContext';
 import { BottomNav, NavTab } from './presentation/components/BottomNav';
 import {
   ShieldCheck,
@@ -44,24 +47,20 @@ import {
   Sparkles,
   Store,
   PhoneCall,
+  Loader2,
 } from 'lucide-react';
 
 export default function App() {
-  // Global State with LocalDb Persistence
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    const authUser = getCurrentAuthUser();
-    if (authUser) {
-      return {
-        ...CURRENT_USER,
-        id: authUser.uid,
-        name: authUser.displayName || 'Morvi Ajmeri',
-        email: authUser.email || 'ajmeri.morvi@gmail.com',
-        avatarUrl: authUser.photoURL || CURRENT_USER.avatarUrl,
-        authProvider: 'google',
-      };
+  const { currentUser, updateUserProfile, loading: authLoading } = useAuth();
+
+  const setCurrentUser = (updater: React.SetStateAction<User>) => {
+    if (typeof updater === 'function') {
+      const next = updater(currentUser);
+      updateUserProfile(next);
+    } else {
+      updateUserProfile(updater);
     }
-    return CURRENT_USER;
-  });
+  };
 
   const [contacts, setContacts] = useState<Contact[]>(() => localDb.getContacts());
   const [businesses, setBusinesses] = useState<Business[]>(() => localDb.getBusinesses());
@@ -73,6 +72,17 @@ export default function App() {
   const [staff] = useState<StaffMember[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [lang, setLang] = useState<Language>('en');
+
+  // Real-time Firestore Businesses Sync
+  useEffect(() => {
+    firestoreChatService.seedInitialBusinessesIfEmpty(INITIAL_BUSINESSES);
+    const unsub = firestoreChatService.subscribeBusinesses((bizList) => {
+      if (bizList && bizList.length > 0) {
+        setBusinesses(bizList);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Navigation & View state
   const [currentTab, setCurrentTab] = useState<NavTab>('chats');
@@ -362,13 +372,17 @@ export default function App() {
     setSearchQuery('');
   };
 
-  // Select a conversation and mark incoming messages as read
+  // Select a conversation and mark incoming messages as read canonically in Firestore
   const handleSelectConversation = (conv: Conversation) => {
     setMessages((prev) => {
       const list = prev[conv.id] || [];
-      const updated = list.map((m) =>
-        m.senderId !== currentUser.id && m.status !== 'read' ? { ...m, status: 'read' as const } : m
-      );
+      const updated = list.map((m) => {
+        if (m.senderId !== currentUser.id && m.status !== 'read') {
+          firestoreChatService.updateMessageStatus(conv.id, m.id, 'read').catch(console.warn);
+          return { ...m, status: 'read' as const };
+        }
+        return m;
+      });
       return { ...prev, [conv.id]: updated };
     });
 
@@ -379,7 +393,7 @@ export default function App() {
     setActiveConversation({ ...conv, unreadCount: 0 });
   };
 
-  // Send message in active chat with real sent -> delivered -> read status transitions
+  // Send message in active chat and persist canonically to Firestore
   const handleSendMessage = (msgPayload: Partial<Message>) => {
     if (!activeConversation) return;
 
@@ -427,115 +441,6 @@ export default function App() {
     firestoreChatService.sendMessage(activeConversation.id, newMsg, activeConversation).catch((err) => {
       console.warn('Firestore message sync notice:', err);
     });
-
-    // 1. Transition to 'delivered' (double grey checkmarks) after 400ms
-    setTimeout(() => {
-      setMessages((prev) => {
-        const list = prev[activeConversation.id] || [];
-        return {
-          ...prev,
-          [activeConversation.id]: list.map((m) =>
-            m.id === msgId && m.status === 'sent' ? { ...m, status: 'delivered' as const } : m
-          ),
-        };
-      });
-
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConversation.id && c.lastMessage.senderId === currentUser.id
-            ? {
-                ...c,
-                lastMessage: {
-                  ...c.lastMessage,
-                  status: c.lastMessage.status === 'read' ? 'read' : 'delivered',
-                },
-              }
-            : c
-        )
-      );
-    }, 450);
-
-    // 2. Transition to 'read' (double blue checkmarks) after 1100ms when recipient opens and views the message
-    setTimeout(() => {
-      setMessages((prev) => {
-        const list = prev[activeConversation.id] || [];
-        return {
-          ...prev,
-          [activeConversation.id]: list.map((m) =>
-            m.id === msgId || (m.senderId === currentUser.id && m.status !== 'read')
-              ? { ...m, status: 'read' as const }
-              : m
-          ),
-        };
-      });
-
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConversation.id && c.lastMessage.senderId === currentUser.id
-            ? {
-                ...c,
-                lastMessage: {
-                  ...c.lastMessage,
-                  status: 'read',
-                },
-              }
-            : c
-        )
-      );
-    }, 1100);
-
-    // 3. Simulated response from verified merchant or contact
-    if (activeConversation.type === 'business') {
-      const bizId = activeConversation.businessId;
-      const biz = businesses.find((b) => b.id === bizId);
-
-      if (biz && biz.openForChat) {
-        setTimeout(() => {
-          const replyText =
-            biz.quickReplies?.[0] || 'Thank you for reaching out! Our team is reviewing your requirement.';
-          const replyMsg: Message = {
-            id: `reply_${Date.now()}`,
-            conversationId: activeConversation.id,
-            senderId: biz.id,
-            senderName: biz.name,
-            type: 'text',
-            text: replyText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'read',
-          };
-
-          setMessages((p) => {
-            const list = p[activeConversation.id] || [];
-            // Ensure all user messages in this chat are marked as read
-            const allRead = list.map((m) =>
-              m.senderId === currentUser.id ? { ...m, status: 'read' as const } : m
-            );
-            return {
-              ...p,
-              [activeConversation.id]: [...allRead, replyMsg],
-            };
-          });
-
-          setConversations((p) =>
-            p.map((c) =>
-              c.id === activeConversation.id
-                ? {
-                    ...c,
-                    lastMessage: {
-                      text: replyText,
-                      senderId: biz.id,
-                      timestamp: replyMsg.timestamp,
-                      type: 'text',
-                      status: 'read',
-                    },
-                    updatedAt: new Date().toISOString(),
-                  }
-                : c
-            )
-          );
-        }, 1600);
-      }
-    }
   };
 
   const handleUpdateInquiryStatus = (inquiryId: string, newStatus: InquiryStatus) => {

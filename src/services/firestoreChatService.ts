@@ -125,47 +125,68 @@ export const firestoreChatService = {
   },
 
   /**
-   * Send a message to Firestore and update the parent conversation's last message metadata.
+   * Send a message to Firestore atomically and update parent conversation metadata.
    */
   async sendMessage(conversationId: string, message: Message, conversationPayload?: Partial<Conversation>): Promise<void> {
     try {
-      // 1. Ensure conversation exists in Firestore
+      const batch = writeBatch(db);
       const convRef = doc(db, 'conversations', conversationId);
-      if (conversationPayload) {
-        await setDoc(
-          convRef,
-          {
+
+      const convData = conversationPayload
+        ? {
             ...conversationPayload,
             id: conversationId,
             lastMessageText: message.text || (message.type === 'image' ? '📷 Photo' : 'Voice note'),
             lastMessageTimestamp: message.timestamp,
             lastMessageStatus: message.status,
             updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } else {
-        await setDoc(
-          convRef,
-          {
+          }
+        : {
             lastMessageText: message.text || (message.type === 'image' ? '📷 Photo' : 'Voice note'),
             lastMessageTimestamp: message.timestamp,
             lastMessageStatus: message.status,
             updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      }
+          };
 
-      // 2. Add message to the conversation's subcollection
+      batch.set(convRef, convData, { merge: true });
+
       const msgRef = doc(db, 'conversations', conversationId, 'messages', message.id);
-      await setDoc(msgRef, {
+      batch.set(msgRef, {
         ...message,
         createdAt: serverTimestamp(),
       });
+
+      await batch.commit();
     } catch (e) {
-      console.error('Failed to send message to Firestore:', e);
+      console.error('Failed to send message atomically to Firestore:', e);
       throw e;
+    }
+  },
+
+  /**
+   * Subscribe to Businesses in Firestore
+   */
+  subscribeBusinesses(onUpdate: (businesses: Business[]) => void): () => void {
+    try {
+      const bizRef = collection(db, 'businesses');
+      return onSnapshot(
+        bizRef,
+        (snapshot) => {
+          const list: Business[] = [];
+          snapshot.forEach((d) => {
+            list.push({ id: d.id, ...d.data() } as Business);
+          });
+          if (list.length > 0) {
+            onUpdate(list);
+          }
+        },
+        (error) => {
+          console.warn('Businesses subscription notice:', error);
+        }
+      );
+    } catch (e) {
+      console.warn('Failed subscribing to businesses:', e);
+      return () => {};
     }
   },
 
@@ -234,6 +255,24 @@ export const firestoreChatService = {
       await setDoc(bizRef, business, { merge: true });
     } catch (e) {
       console.warn('Failed saving business to Firestore:', e);
+    }
+  },
+
+  /**
+   * Seed baseline verified businesses to Firestore if collection is empty
+   */
+  async seedInitialBusinessesIfEmpty(defaultBusinesses: Business[]): Promise<void> {
+    try {
+      const snap = await getDocs(collection(db, 'businesses'));
+      if (snap.empty && defaultBusinesses.length > 0) {
+        const batch = writeBatch(db);
+        for (const b of defaultBusinesses) {
+          batch.set(doc(db, 'businesses', b.id), b);
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Initial business seeding notice:', e);
     }
   },
 };

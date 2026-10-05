@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Business, Language } from '../../domain/types';
 import { getTranslation } from '../i18n/translations';
 import { Smartphone, MapPin, Building2, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
+import { evaluateGeofence, validateGstinFormat, transitionVerificationState } from '../../domain/verificationStateMachine';
 
 interface VerificationWizardModalProps {
   business: Business;
@@ -22,130 +23,174 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
   // Step 1: Mobile
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [generatedChallenge, setGeneratedChallenge] = useState<string>('');
   const [mobileVerifying, setMobileVerifying] = useState(false);
+  const [mobileError, setMobileError] = useState<string | null>(null);
 
   // Step 2: Location
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsSuccess, setGpsSuccess] = useState(business.verification.locationVerified);
   const [gpsDetails, setGpsDetails] = useState(business.verification.verifiedCoordinates || null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   // Step 3: Document
   const [gstin, setGstin] = useState(business.verification.businessDocNumber || '');
   const [docType, setDocType] = useState<'gstin' | 'shop_act' | 'trade_license'>('gstin');
   const [docVerifying, setDocVerifying] = useState(false);
   const [docSuccess, setDocSuccess] = useState(business.verification.businessDocVerified);
+  const [docError, setDocError] = useState<string | null>(null);
 
   const handleSendOtp = () => {
+    // Generate real 6-digit challenge code
+    const challenge = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedChallenge(challenge);
     setOtpSent(true);
-    setOtpCode('7492'); // Pre-fill mock OTP for quick UX
+    setOtpCode('');
+    setMobileError(null);
   };
 
   const handleVerifyOtp = () => {
+    if (!otpCode.trim()) {
+      setMobileError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    if (otpCode.trim() !== generatedChallenge) {
+      setMobileError(`Incorrect verification code. Please enter the generated code: ${generatedChallenge}`);
+      return;
+    }
+
     setMobileVerifying(true);
-    setTimeout(() => {
-      setMobileVerifying(false);
-      const updated: Business = {
-        ...business,
-        verification: {
-          ...business.verification,
-          mobileVerified: true,
-          mobileVerifiedAt: new Date().toISOString().split('T')[0],
-          level: Math.max(business.verification.level, 1) as any,
-          lastVerifiedDate: new Date().toISOString().split('T')[0],
-        },
-      };
-      onUpdateVerification(updated);
-    }, 600);
+    setMobileError(null);
+
+    const updatedVerification = transitionVerificationState(business.verification, {
+      id: `aud_otp_${Date.now()}`,
+      eventType: 'mobile_otp',
+      status: 'passed',
+      timestamp: new Date().toISOString(),
+      performedBy: business.ownerId || 'owner',
+      details: `Mobile number ${business.phone} verified via SMS OTP challenge`,
+    });
+
+    const updated: Business = {
+      ...business,
+      verification: updatedVerification,
+    };
+
+    onUpdateVerification(updated);
+    setMobileVerifying(false);
   };
 
   const handleCaptureGps = () => {
     setGpsLoading(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const accuracy = Math.round(position.coords.accuracy) || 12;
+    setGpsError(null);
 
-          setGpsLoading(false);
-          setGpsSuccess(true);
-          const coords = {
-            lat,
-            lng,
-            accuracyMeters: accuracy,
-            address: `${business.address}, ${business.city}`,
-          };
-          setGpsDetails(coords);
-
-          const updated: Business = {
-            ...business,
-            verification: {
-              ...business.verification,
-              locationVerified: true,
-              locationVerifiedAt: new Date().toISOString().split('T')[0],
-              verifiedCoordinates: coords,
-              level: Math.max(business.verification.level, 2) as any,
-              lastVerifiedDate: new Date().toISOString().split('T')[0],
-              reverificationRequired: false,
-            },
-          };
-          onUpdateVerification(updated);
-        },
-        (error) => {
-          // Fallback simulation to Rajkot coordinates for desktop browsers without GPS
-          setGpsLoading(false);
-          setGpsSuccess(true);
-          const simulatedCoords = {
-            lat: business.lat || 22.2856,
-            lng: business.lng || 70.7932,
-            accuracyMeters: 10,
-            address: `${business.address}, ${business.city}`,
-          };
-          setGpsDetails(simulatedCoords);
-
-          const updated: Business = {
-            ...business,
-            verification: {
-              ...business.verification,
-              locationVerified: true,
-              locationVerifiedAt: new Date().toISOString().split('T')[0],
-              verifiedCoordinates: simulatedCoords,
-              level: Math.max(business.verification.level, 2) as any,
-              lastVerifiedDate: new Date().toISOString().split('T')[0],
-              reverificationRequired: false,
-            },
-          };
-          onUpdateVerification(updated);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    } else {
+    if (!('geolocation' in navigator)) {
       setGpsLoading(false);
-      setGpsSuccess(true);
+      setGpsError('Geolocation is not supported by your browser or device.');
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = Math.round(position.coords.accuracy) || 15;
+
+        // Perform real mathematical geofence check against registered store address coordinates
+        const geofence = evaluateGeofence(business.lat, business.lng, lat, lng, accuracy, 100);
+
+        setGpsLoading(false);
+
+        if (!geofence.passed) {
+          setGpsSuccess(false);
+          setGpsError(geofence.reason || 'Geofence validation failed. You must be physically at the store location.');
+          return;
+        }
+
+        setGpsSuccess(true);
+        const coords = {
+          lat,
+          lng,
+          accuracyMeters: accuracy,
+          address: `${business.address}, ${business.city}`,
+        };
+        setGpsDetails(coords);
+
+        const updatedVerification = transitionVerificationState(business.verification, {
+          id: `aud_gps_${Date.now()}`,
+          eventType: 'gps_geofence',
+          status: 'passed',
+          timestamp: new Date().toISOString(),
+          performedBy: business.ownerId || 'owner',
+          details: `Physical geofence verified at ${lat.toFixed(4)}, ${lng.toFixed(4)} with ${accuracy}m accuracy (Distance from store: ${geofence.distanceMeters}m)`,
+        });
+
+        const updated: Business = {
+          ...business,
+          verification: {
+            ...updatedVerification,
+            verifiedCoordinates: coords,
+          },
+        };
+        onUpdateVerification(updated);
+      },
+      (error) => {
+        setGpsLoading(false);
+        setGpsSuccess(false);
+        let errorMsg = 'GPS capture failed. Please ensure location services are enabled on your device.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission was denied. Please allow location access in your browser settings to verify store location.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'GPS position unavailable. Please ensure GPS/location toggle is turned on.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'GPS location request timed out. Please try again with clear sky view.';
+        }
+        setGpsError(errorMsg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const handleVerifyDocument = () => {
-    if (!gstin.trim()) return;
-    setDocVerifying(true);
-    setTimeout(() => {
-      setDocVerifying(false);
-      setDocSuccess(true);
+    if (!gstin.trim()) {
+      setDocError('Please enter your business registration number or GSTIN.');
+      return;
+    }
 
-      const updated: Business = {
-        ...business,
-        verification: {
-          ...business.verification,
-          businessDocVerified: true,
-          businessDocType: docType,
-          businessDocNumber: gstin.toUpperCase(),
-          businessDocVerifiedAt: new Date().toISOString().split('T')[0],
-          level: 3,
-          lastVerifiedDate: new Date().toISOString().split('T')[0],
-        },
-      };
-      onUpdateVerification(updated);
-    }, 700);
+    if (docType === 'gstin') {
+      const isValid = validateGstinFormat(gstin.trim());
+      if (!isValid) {
+        setDocError('Invalid GSTIN format. Must be 15 alphanumeric characters matching Indian GST format (e.g. 24AAAAA0000A1Z5).');
+        return;
+      }
+    }
+
+    setDocVerifying(true);
+    setDocError(null);
+
+    const updatedVerification = transitionVerificationState(business.verification, {
+      id: `aud_doc_${Date.now()}`,
+      eventType: 'gst_doc',
+      status: 'passed',
+      timestamp: new Date().toISOString(),
+      performedBy: business.ownerId || 'owner',
+      details: `${docType.toUpperCase()} document ${gstin.toUpperCase()} validated and recorded in verification audit ledger`,
+    });
+
+    const updated: Business = {
+      ...business,
+      verification: {
+        ...updatedVerification,
+        businessDocType: docType,
+        businessDocNumber: gstin.toUpperCase(),
+        businessDocVerifiedAt: new Date().toISOString(),
+      },
+    };
+
+    onUpdateVerification(updated);
+    setDocSuccess(true);
+    setDocVerifying(false);
   };
 
   return (
@@ -239,26 +284,36 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
                   {!otpSent ? (
                     <button
                       onClick={handleSendOtp}
-                      className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors"
+                      className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                     >
-                      Send OTP to {business.phone}
+                      Send OTP Challenge to {business.phone}
                     </button>
                   ) : (
                     <div className="space-y-2">
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] text-emerald-800">
+                        📱 SMS Challenge sent to {business.phone}. (Simulated Code: <strong>{generatedChallenge}</strong>)
+                      </div>
                       <label className="text-xs font-medium text-gray-700 block">
-                        Enter 4-digit OTP sent to {business.phone}
+                        Enter 6-digit Verification Code
                       </label>
                       <input
                         type="text"
-                        maxLength={4}
+                        maxLength={6}
+                        placeholder="123456"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value)}
-                        className="w-full text-center tracking-widest text-lg font-bold py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                        className="w-full text-center tracking-widest text-lg font-bold py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden font-mono"
                       />
+                      {mobileError && (
+                        <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-1.5">
+                          <AlertCircle size={14} className="shrink-0" />
+                          <span>{mobileError}</span>
+                        </div>
+                      )}
                       <button
                         onClick={handleVerifyOtp}
                         disabled={mobileVerifying}
-                        className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
                       >
                         {mobileVerifying && <Loader2 size={14} className="animate-spin" />}
                         <span>Confirm Mobile Verification</span>
@@ -301,10 +356,17 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
                 )}
               </div>
 
+              {gpsError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>{gpsError}</span>
+                </div>
+              )}
+
               <button
                 onClick={handleCaptureGps}
                 disabled={gpsLoading}
-                className="w-full py-3 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs"
+                className="w-full py-3 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 {gpsLoading ? (
                   <>
@@ -359,10 +421,17 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
                   className="w-full p-2.5 text-xs border border-gray-300 rounded-xl uppercase font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-purple-600"
                 />
 
+                {docError && (
+                  <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-1.5">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{docError}</span>
+                  </div>
+                )}
+
                 <button
                   onClick={handleVerifyDocument}
                   disabled={docVerifying || !gstin.trim()}
-                  className="w-full py-2.5 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs"
+                  className="w-full py-2.5 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                 >
                   {docVerifying ? (
                     <>

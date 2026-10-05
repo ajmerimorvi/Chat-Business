@@ -73,6 +73,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 text-emerald-100">
+          {onOpenApkModal && (
+            <button
+              onClick={onOpenApkModal}
+              className="p-1.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/80 rounded-lg transition-all flex items-center gap-1.5 text-xs px-2.5 font-bold text-white shadow-2xs cursor-pointer"
+              title="Download APK / Install App"
+            >
+              <Download size={13} className="stroke-[2.5]" />
+              <span className="text-[11px] font-semibold">APK</span>
+            </button>
+          )}
+
           {onOpenAuthModal && (
             <button
               onClick={onOpenAuthModal}
@@ -112,6 +123,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Direct APK Download / Install Strip */}
+      {onOpenApkModal && (
+        <div className="bg-emerald-950 text-white px-3 py-1.5 flex items-center justify-between text-[11px] border-b border-emerald-800 shrink-0">
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <span className="bg-emerald-500 text-emerald-950 font-bold px-1.5 py-0.5 rounded text-[10px] shrink-0">
+              APK v1.0
+            </span>
+            <span className="text-emerald-200 truncate">
+              Install Sampark on Android
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/Sampark.apk"
+              download="Sampark.apk"
+              className="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-0.5 rounded font-semibold text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+              title="Download Sampark.apk directly"
+            >
+              <Download size={11} />
+              <span>Download .apk</span>
+            </a>
+            <button
+              onClick={onOpenApkModal}
+              className="text-emerald-300 hover:text-white text-[11px] underline cursor-pointer"
+            >
+              Options
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Universal Search Bar */}
       <UniversalSearchBar

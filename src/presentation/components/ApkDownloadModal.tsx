@@ -105,23 +105,15 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
             <p className="text-gray-600 text-[11px] leading-relaxed">
               Direct binary APK. Modern Android 14+ phones display a <em>&quot;Unsafe app blocked / built for older version&quot;</em> prompt for sideloaded files outside the Google Play Store.
             </p>
-            <button
-              onClick={handleTriggerApkDownload}
-              disabled={downloading}
-              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-75"
+            <a
+              href="/Sampark.apk"
+              download="Sampark.apk"
+              onClick={() => setDownloadSuccess(true)}
+              className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center shadow-xs"
             >
-              {downloading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Downloading APK...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={14} />
-                  <span>Download Sampark.apk</span>
-                </>
-              )}
-            </button>
+              <Download size={14} />
+              <span>Download Sampark.apk (Direct)</span>
+            </a>
 
             {downloadSuccess && (
               <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px]">

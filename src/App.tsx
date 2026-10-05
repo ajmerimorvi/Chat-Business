@@ -1039,6 +1039,15 @@ export default function App() {
         onClose={() => setShowNewChatModal(false)}
         contacts={contacts}
         businesses={businesses}
+        onAddContacts={(newContacts) => {
+          setContacts((prev) => {
+            const existingPhones = new Set(prev.map((c) => c.phoneNumber.replace(/[^\d]/g, '')));
+            const filteredNew = newContacts.filter(
+              (nc) => !existingPhones.has(nc.phoneNumber.replace(/[^\d]/g, ''))
+            );
+            return [...filteredNew, ...prev];
+          });
+        }}
         onStartChatWithContact={(target, msg) => {
           handleOpenOrCreateChatWith(target, msg);
         }}

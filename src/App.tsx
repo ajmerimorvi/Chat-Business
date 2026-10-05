@@ -34,7 +34,6 @@ import { ApkDownloadModal } from './presentation/components/ApkDownloadModal';
 import { AuthModal } from './presentation/components/AuthModal';
 import { NewChatModal } from './presentation/components/NewChatModal';
 import { AppMenuModal } from './presentation/components/AppMenuModal';
-import { subscribeToAuthChanges, getCurrentAuthUser } from './services/authService';
 import { localDb } from './services/localDb';
 import { firestoreChatService } from './services/firestoreChatService';
 import { useAuth } from './presentation/context/AuthContext';
@@ -193,9 +192,10 @@ export default function App() {
 
   const t = getTranslation(lang);
 
-  // My owned business (ABC Furniture)
+  // My owned business (strictly scoped to authenticated user)
   const myBusiness = useMemo(() => {
-    return businesses.find((b) => b.ownerId === currentUser.id) || businesses[0];
+    if (!currentUser.id) return null;
+    return businesses.find((b) => b.ownerId === currentUser.id) || null;
   }, [businesses, currentUser.id]);
 
   // Execute Universal Search on query change
@@ -581,27 +581,29 @@ export default function App() {
           reports={reports}
           onBack={() => setViewMode('main')}
           onApproveVerification={(bizId, level) => {
-            setBusinesses((prev) =>
-              prev.map((b) => {
-                if (b.id === bizId) {
-                  const updated: Business = {
-                    ...b,
-                    verification: {
-                      ...b.verification,
-                      level,
-                      status: 'verified',
-                      mobileVerified: level >= 1,
-                      locationVerified: level >= 2,
-                      businessDocVerified: level >= 3,
-                      lastVerifiedDate: new Date().toISOString().split('T')[0],
-                    },
-                  };
-                  firestoreChatService.saveBusiness(updated).catch(console.warn);
-                  return updated;
-                }
-                return b;
+            firestoreChatService.recordAuthoritativeVerification(bizId, level, currentUser.id || 'admin')
+              .then(() => {
+                setBusinesses((prev) =>
+                  prev.map((b) => {
+                    if (b.id === bizId) {
+                      return {
+                        ...b,
+                        verification: {
+                          ...b.verification,
+                          level,
+                          status: 'verified',
+                          mobileVerified: level >= 1,
+                          locationVerified: level >= 2,
+                          businessDocVerified: level >= 3,
+                          lastVerifiedDate: new Date().toISOString().split('T')[0],
+                        },
+                      };
+                    }
+                    return b;
+                  })
+                );
               })
-            );
+              .catch(console.error);
           }}
           onToggleSponsored={(bizId) => {
             setBusinesses((prev) =>
@@ -623,10 +625,96 @@ export default function App() {
     }
 
     if (currentTab === 'business' || viewMode === 'business_dashboard') {
+      if (!myBusiness) {
+        return (
+          <div className="flex flex-col h-full bg-gray-50 overflow-y-auto">
+            <header className="bg-emerald-800 text-white px-4 py-3 shadow-xs flex items-center justify-between">
+              <h1 className="font-semibold text-lg">{t.businessTools}</h1>
+              {viewMode === 'business_dashboard' && (
+                <button
+                  onClick={() => setViewMode('main')}
+                  className="text-xs px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white"
+                >
+                  Exit
+                </button>
+              )}
+            </header>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mb-4 shadow-xs">
+                <Store size={32} />
+              </div>
+              <h2 className="text-base font-bold text-gray-900 mb-1">No Business Registered Yet</h2>
+              <p className="text-xs text-gray-600 max-w-sm mb-6 leading-relaxed">
+                You are currently signed in as a customer. Register your enterprise, workshop, or storefront on Sampark to receive customer inquiries, list verified catalog products, and earn trust badges.
+              </p>
+              <button
+                onClick={() => {
+                  if (!currentUser.id) {
+                    setShowAuthModal(true);
+                  } else {
+                    const newBizId = `biz_${Date.now()}`;
+                    const newBiz: Business = {
+                      id: newBizId,
+                      name: `${currentUser.name}'s Enterprise`,
+                      category: 'Retail & Commercial',
+                      subcategory: 'General',
+                      businessType: 'physical_store',
+                      description: 'Registered business on Sampark',
+                      city: 'Rajkot',
+                      address: 'Commercial Hub, Rajkot',
+                      phone: currentUser.phoneNumber || '+91 98000 00000',
+                      ownerId: currentUser.id,
+                      lat: 22.3039,
+                      lng: 70.8022,
+                      coverImageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&auto=format&fit=crop&q=80',
+                      logoUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=200&auto=format&fit=crop&q=80',
+                      openForChat: true,
+                      rating: 5.0,
+                      reviewCount: 1,
+                      businessHours: {
+                        days: 'Mon - Sat',
+                        openTime: '09:00',
+                        closeTime: '20:00',
+                        isOpenToday: true,
+                      },
+                      responseMetrics: {
+                        avgResponseMinutes: 5,
+                        responseRatePct: 98,
+                        text: 'Usually replies within 5 minutes',
+                      },
+                      activeConversationsCount: 0,
+                      maxActiveConversations: 10,
+                      subscriptionTier: 'free',
+                      verification: {
+                        level: 0,
+                        status: 'draft',
+                        mobileVerified: false,
+                        locationVerified: false,
+                        businessDocVerified: false,
+                        reverificationRequired: false,
+                        lastVerifiedDate: new Date().toISOString().split('T')[0],
+                      },
+                      searchKeywords: [currentUser.name.toLowerCase(), 'retail', 'services'],
+                    };
+                    firestoreChatService.saveBusiness(newBiz).then(() => {
+                      setBusinesses((prev) => [newBiz, ...prev]);
+                    }).catch(console.error);
+                  }
+                }}
+                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <Store size={16} />
+                <span>{currentUser.id ? 'Register New Business' : 'Sign in to Register Business'}</span>
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <BusinessDashboardScreen
           business={myBusiness}
-          inquiries={inquiries}
+          inquiries={inquiries.filter((inq) => inq.businessId === myBusiness.id)}
           products={products.filter((p) => p.businessId === myBusiness.id)}
           services={services.filter((s) => s.businessId === myBusiness.id)}
           staff={staff}
@@ -701,7 +789,7 @@ export default function App() {
       return (
         <ProfileSettingsScreen
           currentUser={currentUser}
-          currentBusiness={myBusiness}
+          currentBusiness={myBusiness || undefined}
           lang={lang}
           onLanguageChange={setLang}
           onOpenAdminPortal={() => setViewMode('admin_portal')}
@@ -782,7 +870,7 @@ export default function App() {
           conversation={activeConversation}
           messages={messages[activeConversation.id] || []}
           currentUser={currentUser}
-          currentBusiness={myBusiness}
+          currentBusiness={myBusiness || undefined}
           inquiry={activeInquiry}
           onSendMessage={handleSendMessage}
           onUpdateInquiryStatus={handleUpdateInquiryStatus}
@@ -996,7 +1084,7 @@ export default function App() {
         isOpen={showMenuModal}
         onClose={() => setShowMenuModal(false)}
         currentUser={currentUser}
-        currentBusiness={myBusiness}
+        currentBusiness={myBusiness || undefined}
         lang={lang}
         onOpenBusinessDashboard={() => {
           setViewMode('business_dashboard');

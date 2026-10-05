@@ -3,6 +3,7 @@ import { Business, Language } from '../../domain/types';
 import { getTranslation } from '../i18n/translations';
 import { Smartphone, MapPin, Building2, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
 import { evaluateGeofence, validateGstinFormat, transitionVerificationState } from '../../domain/verificationStateMachine';
+import { firestoreChatService } from '../../services/firestoreChatService';
 
 interface VerificationWizardModalProps {
   business: Business;
@@ -77,6 +78,16 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
       verification: updatedVerification,
     };
 
+    firestoreChatService.submitVerificationRequest({
+      id: `req_otp_${Date.now()}`,
+      businessId: business.id,
+      businessName: business.name,
+      ownerId: business.ownerId,
+      type: 'mobile_otp',
+      details: `Mobile number ${business.phone} verified via SMS OTP challenge`,
+      status: 'pending',
+    }).catch(console.error);
+
     onUpdateVerification(updated);
     setMobileVerifying(false);
   };
@@ -133,6 +144,18 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
             verifiedCoordinates: coords,
           },
         };
+
+        firestoreChatService.submitVerificationRequest({
+          id: `req_gps_${Date.now()}`,
+          businessId: business.id,
+          businessName: business.name,
+          ownerId: business.ownerId,
+          type: 'gps_geofence',
+          details: `Geofence verified at ${lat.toFixed(4)}, ${lng.toFixed(4)} with ${accuracy}m accuracy (Distance: ${geofence.distanceMeters}m)`,
+          status: 'pending',
+          payload: coords,
+        }).catch(console.error);
+
         onUpdateVerification(updated);
       },
       (error) => {
@@ -187,6 +210,16 @@ export const VerificationWizardModal: React.FC<VerificationWizardModalProps> = (
         businessDocVerifiedAt: new Date().toISOString(),
       },
     };
+
+    firestoreChatService.submitVerificationRequest({
+      id: `req_doc_${Date.now()}`,
+      businessId: business.id,
+      businessName: business.name,
+      ownerId: business.ownerId,
+      type: 'gst_doc',
+      details: `${docType.toUpperCase()} registration ${gstin.toUpperCase()} submitted for verification`,
+      status: 'pending',
+    }).catch(console.error);
 
     onUpdateVerification(updated);
     setDocSuccess(true);

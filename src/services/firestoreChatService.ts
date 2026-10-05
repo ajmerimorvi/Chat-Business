@@ -235,27 +235,23 @@ export const firestoreChatService = {
    * Save an inquiry to Firestore
    */
   async saveInquiry(inquiry: Inquiry): Promise<void> {
-    try {
-      const inqRef = doc(db, 'inquiries', inquiry.id);
-      await setDoc(inqRef, {
+    const inqRef = doc(db, 'inquiries', inquiry.id);
+    await setDoc(
+      inqRef,
+      {
         ...inquiry,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
-    } catch (e) {
-      console.warn('Failed saving inquiry to Firestore:', e);
-    }
+      },
+      { merge: true }
+    );
   },
 
   /**
    * Save business document to Firestore
    */
   async saveBusiness(business: Business): Promise<void> {
-    try {
-      const bizRef = doc(db, 'businesses', business.id);
-      await setDoc(bizRef, business, { merge: true });
-    } catch (e) {
-      console.warn('Failed saving business to Firestore:', e);
-    }
+    const bizRef = doc(db, 'businesses', business.id);
+    await setDoc(bizRef, business, { merge: true });
   },
 
   /**
@@ -280,47 +276,81 @@ export const firestoreChatService = {
    * Save product document to Firestore
    */
   async saveProduct(product: Product): Promise<void> {
-    try {
-      const prodRef = doc(db, 'products', product.id);
-      await setDoc(prodRef, product, { merge: true });
-    } catch (e) {
-      console.warn('Failed saving product to Firestore:', e);
-    }
+    const prodRef = doc(db, 'products', product.id);
+    await setDoc(prodRef, product, { merge: true });
   },
 
   /**
    * Save service document to Firestore
    */
   async saveService(service: Service): Promise<void> {
-    try {
-      const srvRef = doc(db, 'services', service.id);
-      await setDoc(srvRef, service, { merge: true });
-    } catch (e) {
-      console.warn('Failed saving service to Firestore:', e);
-    }
+    const srvRef = doc(db, 'services', service.id);
+    await setDoc(srvRef, service, { merge: true });
   },
 
   /**
    * Save safety report document to Firestore
    */
   async saveReport(report: any): Promise<void> {
-    try {
-      const repRef = doc(db, 'reports', report.id);
-      await setDoc(repRef, { ...report, createdAt: serverTimestamp() }, { merge: true });
-    } catch (e) {
-      console.warn('Failed saving report to Firestore:', e);
-    }
+    const repRef = doc(db, 'reports', report.id);
+    await setDoc(repRef, { ...report, createdAt: serverTimestamp() }, { merge: true });
   },
 
   /**
-   * Submit verification audit event to Firestore subcollection
+   * Submit business owner verification request to pending verificationRequests collection
    */
-  async submitVerificationEvent(businessId: string, event: any): Promise<void> {
-    try {
-      const eventRef = doc(db, 'businesses', businessId, 'verificationEvents', event.id);
-      await setDoc(eventRef, event, { merge: true });
-    } catch (e) {
-      console.warn('Failed submitting verification event to Firestore:', e);
-    }
+  async submitVerificationRequest(request: {
+    id: string;
+    businessId: string;
+    businessName: string;
+    ownerId: string;
+    type: 'mobile_otp' | 'gps_geofence' | 'gst_doc';
+    details: string;
+    status: 'pending';
+    payload?: any;
+  }): Promise<void> {
+    const reqRef = doc(db, 'verificationRequests', request.id);
+    await setDoc(reqRef, {
+      ...request,
+      createdAt: serverTimestamp(),
+    });
+  },
+
+  /**
+   * Authoritative admin-only approval to record verified audit and update business verification
+   */
+  async recordAuthoritativeVerification(
+    businessId: string,
+    level: 1 | 2 | 3,
+    adminUid: string
+  ): Promise<void> {
+    const batch = writeBatch(db);
+
+    const recordRef = doc(db, 'verificationRecords', `ver_${businessId}_${Date.now()}`);
+    batch.set(recordRef, {
+      businessId,
+      level,
+      status: 'verified',
+      approvedBy: adminUid,
+      approvedAt: serverTimestamp(),
+    });
+
+    const bizRef = doc(db, 'businesses', businessId);
+    batch.set(
+      bizRef,
+      {
+        verification: {
+          level,
+          status: 'verified',
+          mobileVerified: level >= 1,
+          locationVerified: level >= 2,
+          businessDocVerified: level >= 3,
+          lastVerifiedDate: new Date().toISOString().split('T')[0],
+        },
+      },
+      { merge: true }
+    );
+
+    await batch.commit();
   },
 };

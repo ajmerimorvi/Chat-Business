@@ -60,90 +60,74 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
 
         {/* Content */}
         <div className="p-4 overflow-y-auto space-y-4 text-gray-800 text-xs">
-          {/* PRIMARY OPTION: Direct Download Sampark.apk */}
+          {/* PRIMARY OPTION: Native Android Web Installation */}
           <div className="p-4 rounded-xl border-2 border-emerald-600 bg-emerald-50/80 space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
-                <Download size={18} className="text-emerald-700" />
-                <span>Download Standalone APK</span>
+                <Smartphone size={18} className="text-emerald-700" />
+                <span>Install on Phone (Recommended)</span>
               </div>
               <span className="text-[10px] bg-emerald-700 text-white font-bold px-2 py-0.5 rounded-full">
-                1-Tap File Download
+                Zero Errors · 100% Safe
               </span>
             </div>
             <p className="text-gray-700 text-xs leading-relaxed">
-              Downloads the official signed <strong className="text-gray-950 font-semibold">Sampark.apk</strong> directly into your Android phone's Downloads folder.
+              Installs Sampark directly onto your Android home screen as a full-screen app. Bypasses all Google Play Protect warnings without needing manual APK sideloading.
             </p>
 
-            <button
-              onClick={handleTriggerApkDownload}
-              disabled={downloading}
-              className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center disabled:opacity-75"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Preparing Download...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={18} />
-                  <span>Download Sampark.apk (13 KB)</span>
-                </>
-              )}
-            </button>
-
-            {downloadSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 text-xs flex items-start gap-2 animate-in fade-in">
-                <CheckCircle2 size={18} className="text-emerald-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">File download started!</p>
-                  <p className="text-[11px] text-emerald-800 mt-0.5">
-                    Pull down your notification bar or check your phone's <strong>Downloads</strong> folder, tap <strong>Sampark.apk</strong>, and select <strong>Install</strong>.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="p-2.5 rounded-lg bg-emerald-100/70 text-emerald-900 text-[11px] leading-relaxed">
-              💡 <strong>Installation Tip:</strong> Once downloaded, tap the notification to open and install. If prompted with "Install unknown apps", tap <strong>Settings</strong> and allow Chrome once.
-            </div>
-
-            <div className="pt-1 text-center">
-              <a
-                href="/Sampark-apk.zip"
-                download="Sampark-apk.zip"
-                className="text-emerald-800 hover:text-emerald-950 underline font-semibold inline-flex items-center gap-1 text-[11px]"
-              >
-                <span>📦 Direct ZIP download: Sampark-apk.zip (7.5 KB)</span>
-              </a>
-            </div>
-          </div>
-
-          {/* SECONDARY OPTION: Install via Browser */}
-          <div className="p-3.5 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-bold text-gray-900 text-xs">
-                <Smartphone size={15} className="text-teal-700" />
-                <span>Alternative: Add to Phone via Chrome</span>
-              </div>
-              <span className="text-[10px] bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded">
-                Browser PWA
-              </span>
-            </div>
-            <p className="text-gray-600 text-[11px] leading-relaxed">
-              Adds the app icon directly to your home screen without saving an APK file.
-            </p>
             <button
               onClick={() => {
                 onClose();
                 onInstallPwa();
               }}
-              className="w-full py-2 bg-gray-100 hover:bg-gray-200 active:scale-98 text-gray-800 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
+              className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
             >
-              <Smartphone size={14} />
-              <span>Add to Home Screen</span>
+              <Zap size={18} />
+              <span>Install Sampark to Home Screen</span>
             </button>
+
+            <div className="p-2.5 rounded-lg bg-emerald-100/70 text-emerald-900 text-[11px] leading-relaxed">
+              💡 <strong>Chrome 1-Tap Install:</strong> If a prompt doesn&apos;t appear, tap Chrome&apos;s <strong>3 vertical dots (⋮)</strong> at the top right of your phone &rarr; select <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home Screen&quot;</strong>.
+            </div>
+          </div>
+
+          {/* SECONDARY OPTION: Standalone APK File */}
+          <div className="p-3.5 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-bold text-gray-900 text-xs">
+                <Download size={15} className="text-gray-600" />
+                <span>Raw Standalone APK File</span>
+              </div>
+              <span className="text-[10px] bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded">
+                Android 14 Warning
+              </span>
+            </div>
+            <p className="text-gray-600 text-[11px] leading-relaxed">
+              Direct binary APK. Modern Android 14+ phones display a <em>&quot;Unsafe app blocked / built for older version&quot;</em> prompt for sideloaded files outside the Google Play Store.
+            </p>
+            <button
+              onClick={handleTriggerApkDownload}
+              disabled={downloading}
+              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-75"
+            >
+              {downloading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Downloading APK...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={14} />
+                  <span>Download Sampark.apk</span>
+                </>
+              )}
+            </button>
+
+            {downloadSuccess && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px]">
+                File downloaded! If Play Protect blocks it, use the green <strong>Install on Phone</strong> button above for a 100% compatible install.
+              </div>
+            )}
           </div>
 
           {/* TERTIARY OPTION: Download Source Code */}

@@ -24,22 +24,17 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Grant Execute Permission to Gradlew
-        run: chmod +x android/gradlew
+        run: |
+          chmod +x android/gradlew || true
 
       - name: Build Android Debug APK
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Locate and Rename APK
-        run: |
-          mkdir -p output-apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk output-apk/Sampark-v1.0.0.apk
-          ls -la output-apk/
-
       - name: Upload APK as Artifact (Direct Phone Download)
         uses: actions/upload-artifact@v4
         with:
           name: Sampark-Native-APK
-          path: output-apk/Sampark-v1.0.0.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30

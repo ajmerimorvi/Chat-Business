@@ -47,6 +47,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (snap.exists()) {
             const data = snap.data();
+            const isAdminEmail = fbUser.email === 'ajmeri.morvi@gmail.com';
+            const resolvedRole = isAdminEmail ? 'admin' : (data.role || 'customer');
             setCurrentUser({
               id: fbUser.uid,
               name: data.name || fbUser.displayName || 'Sampark User',
@@ -55,7 +57,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               avatarUrl: data.avatarUrl || fbUser.photoURL || undefined,
               bio: data.bio || '',
               language: data.language || 'en',
-              role: data.role || 'customer',
+              role: resolvedRole,
               ownedBusinessIds: data.ownedBusinessIds || [],
               staffAtBusinessIds: data.staffAtBusinessIds || [],
               blockedUserIds: data.blockedUserIds || [],
@@ -64,6 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
           } else {
             // Create user document in Firestore on first sign-in
+            const isAdminEmail = fbUser.email === 'ajmeri.morvi@gmail.com';
             const newUser: User = {
               id: fbUser.uid,
               name: fbUser.displayName || 'Sampark User',
@@ -72,7 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               avatarUrl: fbUser.photoURL || undefined,
               bio: '',
               language: 'en',
-              role: 'customer',
+              role: isAdminEmail ? 'admin' : 'customer',
               ownedBusinessIds: [],
               staffAtBusinessIds: [],
               blockedUserIds: [],

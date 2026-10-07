@@ -13,6 +13,7 @@ import {
   Phone,
   CheckCircle,
 } from 'lucide-react';
+import { GoogleIcon } from './GoogleIcon';
 
 interface AppMenuModalProps {
   isOpen: boolean;
@@ -167,10 +168,10 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
                 onClose();
                 onOpenAuthModal();
               }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-white hover:bg-emerald-50 border border-gray-300 hover:border-emerald-500 text-gray-900 font-bold rounded-xl transition-all shadow-xs cursor-pointer text-xs"
             >
-              <Mail size={15} />
-              <span>{currentUser.email ? `Switch Account (${currentUser.email})` : 'Sign in with Google'}</span>
+              <GoogleIcon size={16} />
+              <span>{currentUser.email ? `Google: ${currentUser.email}` : 'Sign in with Google (Primary)'}</span>
             </button>
           </div>
         </div>

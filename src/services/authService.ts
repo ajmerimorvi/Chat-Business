@@ -40,6 +40,9 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: User
       console.warn('Could not read existing user doc from Firestore:', e);
     }
 
+    const isAdminEmail = fbUser.email === 'ajmeri.morvi@gmail.com';
+    const resolvedRole = isAdminEmail ? 'admin' : (existingData?.role || 'customer');
+
     const appUser: User = {
       id: fbUser.uid,
       name: fbUser.displayName || 'Sampark User',
@@ -48,7 +51,7 @@ export async function loginWithGoogle(): Promise<{ success: boolean; user?: User
       avatarUrl: fbUser.photoURL || undefined,
       bio: existingData?.bio || '',
       language: existingData?.language || 'en',
-      role: existingData?.role || 'customer',
+      role: resolvedRole,
       ownedBusinessIds: existingData?.ownedBusinessIds || [],
       staffAtBusinessIds: existingData?.staffAtBusinessIds || [],
       blockedUserIds: existingData?.blockedUserIds || [],

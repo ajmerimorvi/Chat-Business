@@ -37,6 +37,7 @@ import { AppMenuModal } from './presentation/components/AppMenuModal';
 import { localDb } from './services/localDb';
 import { firestoreChatService } from './services/firestoreChatService';
 import { useAuth } from './presentation/context/AuthContext';
+import { GoogleIcon } from './presentation/components/GoogleIcon';
 import { BottomNav, NavTab } from './presentation/components/BottomNav';
 import {
   ShieldCheck,
@@ -47,10 +48,13 @@ import {
   Store,
   PhoneCall,
   Loader2,
+  Globe,
+  Smartphone,
+  Crown,
 } from 'lucide-react';
 
 export default function App() {
-  const { currentUser, updateUserProfile, loading: authLoading } = useAuth();
+  const { currentUser, updateUserProfile, loading: authLoading, loginGoogle } = useAuth();
 
   const setCurrentUser = (updater: React.SetStateAction<User>) => {
     if (typeof updater === 'function') {
@@ -832,6 +836,7 @@ export default function App() {
           onOpenLanguageModal={() => setShowLanguageModal(true)}
           onOpenMenuModal={() => setShowMenuModal(true)}
           onOpenApkModal={() => setShowApkModal(true)}
+          onInstallApp={handleInstallApp}
           onOpenAuthModal={() => setShowAuthModal(true)}
           lang={lang}
         />
@@ -995,41 +1000,159 @@ export default function App() {
       );
     }
 
-    // Default right-pane state for desktop (WhatsApp Web style welcome hero)
+    // Default right-pane state for desktop (WhatsApp Web style welcome hero with Primary Google Auth)
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#f0f2f5] border-b-8 border-emerald-700 select-none">
-        <div className="w-24 h-24 rounded-full bg-emerald-800 text-white flex items-center justify-center mb-6 shadow-xl relative">
-          <span className="text-4xl font-extrabold tracking-tight">S</span>
-          <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full shadow-md">
-            <ShieldCheck size={26} className="text-emerald-600" />
+      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 text-center bg-[#f0f2f5] border-b-8 border-emerald-700 select-none overflow-y-auto">
+        <div className="max-w-md w-full flex flex-col items-center">
+          {/* Brand Icon */}
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-800 to-teal-900 text-white flex items-center justify-center mb-5 shadow-xl relative">
+            <span className="text-3xl font-extrabold tracking-tight">S</span>
+            <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full shadow-md">
+              <ShieldCheck size={22} className="text-emerald-600" />
+            </div>
           </div>
-        </div>
 
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Sampark Web</h2>
-        <p className="text-sm text-gray-600 max-w-md leading-relaxed mb-6">
-          Official messaging and verified business discovery platform. Direct communication with GST-registered and location-verified merchants.
-        </p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1.5">Sampark Web</h2>
+          <p className="text-xs text-gray-600 max-w-sm leading-relaxed mb-6">
+            Official messaging and verified business discovery platform with real-time multi-device cloud synchronization.
+          </p>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowNewChatModal(true)}
-            className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs transition-all shadow-md cursor-pointer flex items-center gap-2"
-          >
-            <MessageSquare size={16} />
-            <span>Start New Chat</span>
-          </button>
-          <button
-            onClick={() => setCurrentTab('business')}
-            className="px-5 py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer flex items-center gap-2"
-          >
-            <Store size={16} className="text-emerald-700" />
-            <span>My Store</span>
-          </button>
-        </div>
+          {/* Primary Google Auth Card */}
+          {currentUser.email ? (
+            /* Logged in state on Desktop */
+            <div className="w-full bg-white rounded-2xl p-5 border border-gray-200/80 shadow-md mb-6 text-left space-y-4">
+              <div className="flex items-center gap-3.5 pb-3 border-b border-gray-100">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-emerald-600 shrink-0 shadow-xs"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-emerald-700 text-white font-bold text-lg flex items-center justify-center shrink-0">
+                    {currentUser.name.charAt(0)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-sm text-gray-900 truncate">
+                      {currentUser.name}
+                    </span>
+                    {currentUser.role === 'admin' ? (
+                      <span className="text-[10px] bg-amber-500 text-white font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Crown size={10} />
+                        Admin
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                        Google Verified
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 truncate mt-0.5 font-medium">
+                    {currentUser.email}
+                  </p>
+                </div>
+              </div>
 
-        <div className="mt-12 flex items-center gap-1.5 text-xs text-gray-400">
-          <Lock size={13} />
-          <span>End-to-end encrypted · GST &amp; Geofence Verified</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2">
+                  <Globe size={15} className="text-emerald-700 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-semibold block text-gray-800 text-[11px] truncate">Cloud Sync</span>
+                    <span className="text-[10px] text-emerald-700 truncate">Live Firestore</span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-2">
+                  <Smartphone size={15} className="text-emerald-700 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-semibold block text-gray-800 text-[11px] truncate">Mobile Link</span>
+                    <span className="text-[10px] text-gray-500 truncate">{currentUser.phoneNumber || 'Linked'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => setShowNewChatModal(true)}
+                  className="flex-1 py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <MessageSquare size={14} />
+                  <span>Start New Chat</span>
+                </button>
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-semibold text-xs transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>Account</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Unauthenticated state on Desktop - Primary Google Sign-In */
+            <div className="w-full bg-white rounded-2xl p-5 border border-emerald-200/90 shadow-lg mb-6 space-y-4 text-left">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
+                <div className="w-8 h-8 rounded-lg bg-white p-1.5 shadow-xs border border-emerald-200 flex items-center justify-center shrink-0">
+                  <GoogleIcon size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900">Google Authentication (Primary)</h3>
+                  <p className="text-[11px] text-gray-500">Sign in with your Google email to sync chats &amp; businesses</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="w-full py-3 px-4 bg-white hover:bg-emerald-50/50 border border-gray-300 hover:border-emerald-600 text-gray-900 rounded-xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-xs hover:shadow-md cursor-pointer"
+              >
+                <GoogleIcon size={18} />
+                <span>Continue with Google / Gmail</span>
+              </button>
+
+              <div className="space-y-1.5 text-[11px] text-gray-600 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={13} className="text-emerald-700 shrink-0" />
+                  <span>Live sync across Android phone &amp; desktop browser</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={13} className="text-emerald-700 shrink-0" />
+                  <span>Verified quotations &amp; catalog inquiries</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  onClick={() => setShowNewChatModal(true)}
+                  className="text-xs text-emerald-800 font-semibold hover:underline cursor-pointer"
+                >
+                  Or start chat as guest &rarr;
+                </button>
+                <span className="text-[10px] text-gray-400">Firebase Hosting · SSL</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowNewChatModal(true)}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <MessageSquare size={14} />
+              <span>Direct Chat</span>
+            </button>
+            <button
+              onClick={() => setCurrentTab('business')}
+              className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <Store size={14} className="text-emerald-700" />
+              <span>Business Directory</span>
+            </button>
+          </div>
+
+          <div className="mt-8 flex items-center gap-1.5 text-xs text-gray-400">
+            <Lock size={12} />
+            <span>End-to-end encrypted · Google OAuth &amp; Firebase Hosting</span>
+          </div>
         </div>
       </div>
     );

@@ -3,7 +3,8 @@ import { Conversation, Language, User } from '../../domain/types';
 import { getTranslation } from '../i18n/translations';
 import { UniversalSearchBar } from '../components/UniversalSearchBar';
 import { VerificationBadge } from '../components/VerificationBadge';
-import { Check, CheckCheck, MessageSquarePlus, Store, MoreVertical, Globe, ShieldCheck, Download, Mail, Sparkles } from 'lucide-react';
+import { Check, CheckCheck, MessageSquarePlus, Store, MoreVertical, Globe, ShieldCheck, Download, Mail, Sparkles, Smartphone } from 'lucide-react';
+import { GoogleIcon } from '../components/GoogleIcon';
 
 interface HomeScreenProps {
   conversations: Conversation[];
@@ -17,6 +18,7 @@ interface HomeScreenProps {
   onOpenLanguageModal: () => void;
   onOpenMenuModal: () => void;
   onOpenApkModal?: () => void;
+  onInstallApp?: () => void;
   onOpenAuthModal?: () => void;
   lang?: Language;
 }
@@ -33,6 +35,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenLanguageModal,
   onOpenMenuModal,
   onOpenApkModal,
+  onInstallApp,
   onOpenAuthModal,
   lang = 'en',
 }) => {
@@ -77,30 +80,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <button
               onClick={onOpenApkModal}
               className="p-1.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/80 rounded-lg transition-all flex items-center gap-1.5 text-xs px-2.5 font-bold text-white shadow-2xs cursor-pointer"
-              title="Download APK / Install App"
+              title="Install Native App on Phone"
             >
-              <Download size={13} className="stroke-[2.5]" />
-              <span className="text-[11px] font-semibold">APK</span>
+              <Smartphone size={13} className="stroke-[2.5]" />
+              <span className="text-[11px] font-bold">Install</span>
             </button>
           )}
 
           {onOpenAuthModal && (
             <button
               onClick={onOpenAuthModal}
-              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs px-2.5 font-medium border shadow-2xs ${
+              className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 text-xs px-2.5 font-bold shadow-xs cursor-pointer ${
                 currentUser.email
-                  ? 'bg-emerald-700 hover:bg-emerald-600 border-emerald-500 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white font-bold'
+                  ? 'bg-emerald-800 hover:bg-emerald-700 border border-emerald-500/80 text-white'
+                  : 'bg-white hover:bg-emerald-50 border border-emerald-300 text-gray-900 shadow-sm'
               }`}
-              title={currentUser.email ? `Account: ${currentUser.email}` : 'Sign In'}
+              title={currentUser.email ? `Google Account: ${currentUser.email}` : 'Sign In with Google'}
             >
-              {currentUser.avatarUrl ? (
-                <img src={currentUser.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+              {currentUser.email ? (
+                currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover border border-emerald-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-emerald-600 flex items-center justify-center text-[10px] text-white">
+                    {currentUser.name.charAt(0)}
+                  </div>
+                )
               ) : (
-                <Mail size={13} />
+                <GoogleIcon size={14} />
               )}
-              <span className="text-[11px]">
-                {currentUser.email ? 'Account' : 'Login'}
+              <span className="text-[11px] font-bold">
+                {currentUser.email ? (currentUser.name ? currentUser.name.split(' ')[0] : 'Account') : 'Google Sign In'}
               </span>
             </button>
           )}
@@ -124,33 +133,58 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </header>
 
-      {/* Direct APK Download / Install Strip */}
-      {onOpenApkModal && (
+      {/* Google Email Primary Sign-In Strip (When Unauthenticated) */}
+      {!currentUser.email && onOpenAuthModal && (
+        <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white px-3 py-2 flex items-center justify-between text-xs border-b border-emerald-800 shrink-0 shadow-xs">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className="w-6 h-6 rounded bg-white p-1 flex items-center justify-center shrink-0 shadow-xs">
+              <GoogleIcon size={14} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-white font-bold block text-[11px] leading-tight truncate">
+                Sign in with Google
+              </span>
+              <span className="text-emerald-200 text-[10px] leading-tight block truncate">
+                Sync chats &amp; verified merchants across mobile &amp; desktop
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onOpenAuthModal}
+            className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 px-2.5 py-1 rounded-md font-extrabold text-[11px] flex items-center gap-1 transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
+          >
+            <span>Sign In</span>
+          </button>
+        </div>
+      )}
+
+      {/* Direct App Installation Strip */}
+      {(onInstallApp || onOpenApkModal) && (
         <div className="bg-emerald-950 text-white px-3 py-1.5 flex items-center justify-between text-[11px] border-b border-emerald-800 shrink-0">
           <div className="flex items-center gap-1.5 overflow-hidden">
-            <span className="bg-emerald-500 text-emerald-950 font-bold px-1.5 py-0.5 rounded text-[10px] shrink-0">
-              APK v1.0
+            <span className="bg-emerald-400 text-emerald-950 font-bold px-1.5 py-0.5 rounded text-[10px] shrink-0">
+              Android App
             </span>
             <span className="text-emerald-200 truncate">
-              Install Sampark on Android
+              Install Sampark without APK errors
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <a
-              href="/Sampark.apk"
-              download="Sampark.apk"
-              className="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-0.5 rounded font-semibold text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-              title="Download Sampark.apk directly"
-            >
-              <Download size={11} />
-              <span>Download .apk</span>
-            </a>
             <button
-              onClick={onOpenApkModal}
-              className="text-emerald-300 hover:text-white text-[11px] underline cursor-pointer"
+              onClick={onInstallApp || onOpenApkModal}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 rounded font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
             >
-              Options
+              <Smartphone size={12} />
+              <span>Install to Phone</span>
             </button>
+            {onOpenApkModal && (
+              <button
+                onClick={onOpenApkModal}
+                className="text-emerald-300 hover:text-white text-[11px] underline cursor-pointer"
+              >
+                Options
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
-import { Smartphone, Download, ExternalLink, Zap, CheckCircle2, ShieldCheck, X, FileCode, Loader2 } from 'lucide-react';
-import { downloadSamparkApk } from '../../utils/apkDownloader';
+import {
+  Smartphone,
+  Download,
+  ExternalLink,
+  Zap,
+  CheckCircle2,
+  ShieldCheck,
+  X,
+  FileCode,
+  AlertCircle,
+  HelpCircle,
+} from 'lucide-react';
 
 interface ApkDownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInstallPwa: () => void;
   isInstallable: boolean;
+  deferredPrompt?: any;
 }
 
 export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
@@ -14,26 +25,40 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
   onClose,
   onInstallPwa,
   isInstallable,
+  deferredPrompt,
 }) => {
-  const [downloading, setDownloading] = useState(false);
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [showManualGuide, setShowManualGuide] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleTriggerApkDownload = async () => {
-    setDownloading(true);
-    setDownloadSuccess(false);
-    try {
-      await downloadSamparkApk();
-      setDownloadSuccess(true);
-    } finally {
-      setDownloading(false);
+  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+  const standaloneUrl = 'https://ais-pre-3d2wbfw7g7ajj7jgktyprb-752226124319.asia-southeast1.run.app';
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice?.outcome === 'accepted') {
+          onClose();
+          return;
+        }
+      } catch (e) {
+        console.warn('Install prompt error:', e);
+      }
     }
+    // If inside iframe or browser prompt blocked, show exact instructions
+    setShowManualGuide(true);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white p-4 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -42,17 +67,17 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base leading-tight">Download Sampark APK</h3>
+                <h3 className="font-bold text-base leading-tight">Install Sampark App</h3>
                 <span className="text-[10px] bg-emerald-400 text-emerald-950 font-bold px-1.5 py-0.5 rounded">
-                  v1.0.0 Ready
+                  Native Android
                 </span>
               </div>
-              <p className="text-xs text-emerald-200">Official Android Package (.apk)</p>
+              <p className="text-xs text-emerald-200">Full screen · Zero APK errors</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors text-sm font-semibold"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors text-sm font-semibold cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -60,7 +85,7 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
 
         {/* Content */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-gray-800 text-xs">
-          {/* PRIMARY OPTION: Native Android WebAPK Installation */}
+          {/* PRIMARY OPTION: Native Android Installation */}
           <div className="p-4 rounded-2xl border-2 border-emerald-600 bg-emerald-50/90 space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
@@ -71,9 +96,9 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
                 No Computer Needed
               </span>
             </div>
-            
+
             <p className="text-gray-700 text-xs leading-relaxed">
-              Google Play Services on your Android phone automatically packages and installs <strong>Sampark as a full native app</strong> directly to your home screen and app drawer.
+              Google Play Services on your Android phone automatically installs <strong>Sampark as a full native app</strong> directly to your home screen with zero sideloading warnings.
             </p>
 
             {/* Native App Features List */}
@@ -96,26 +121,56 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
               </div>
             </div>
 
+            {/* Primary Action Button */}
             <button
-              onClick={() => {
-                onClose();
-                onInstallPwa();
-              }}
-              className="w-full min-h-[46px] py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
+              onClick={handleInstallClick}
+              className="w-full min-h-[48px] py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
             >
               <Zap size={18} />
               <span>Install Full Native App on This Phone</span>
             </button>
 
-            <div className="p-3 rounded-xl bg-emerald-100/80 text-emerald-950 text-xs space-y-1.5 leading-relaxed">
-              <div className="font-bold flex items-center gap-1.5">
-                <span>📱 2 Simple Steps on Your Phone:</span>
+            {/* In-Frame / Chrome Instructions Guide */}
+            {(showManualGuide || isInIframe) && (
+              <div className="p-3.5 rounded-xl bg-amber-50/90 border-2 border-amber-300 text-amber-950 space-y-2.5 animate-in fade-in duration-200">
+                <div className="font-bold flex items-center gap-1.5 text-xs text-amber-900">
+                  <AlertCircle size={16} className="text-amber-700 shrink-0" />
+                  <span>How to Complete Installation on Chrome:</span>
+                </div>
+
+                <div className="text-[11px] text-gray-800 bg-white p-3 rounded-xl border border-amber-200 space-y-1.5">
+                  <p className="font-bold text-emerald-900">👉 Option 1: Right now in this browser</p>
+                  <p className="leading-relaxed">
+                    Look at the bottom right corner of your phone (or top right) &rarr; tap Chrome&apos;s <strong>3 vertical dots (⋮)</strong> menu &rarr; tap <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home screen&quot;</strong>.
+                  </p>
+                </div>
+
+                <div className="text-[11px] text-gray-800 bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+                  <p className="font-bold text-emerald-900">👉 Option 2: Open Direct Standalone App</p>
+                  <p className="leading-relaxed">
+                    Opening the standalone URL outside of AI Studio allows Chrome to prompt install with 1 tap:
+                  </p>
+                  <a
+                    href={standaloneUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center shadow-xs"
+                  >
+                    <ExternalLink size={14} />
+                    <span>Open Standalone App in New Tab</span>
+                  </a>
+                </div>
               </div>
-              <ol className="list-decimal list-inside space-y-1 text-[11px] text-emerald-900 pl-1">
-                <li>Tap the green button above, then tap <strong>&quot;Install&quot;</strong> on the prompt.</li>
-                <li>If the prompt doesn&apos;t pop up, tap Chrome&apos;s <strong>3 vertical dots (⋮)</strong> at the top right of your phone &rarr; select <strong>&quot;Install app&quot;</strong>.</li>
-              </ol>
-            </div>
+            )}
+
+            {!showManualGuide && !isInIframe && (
+              <div className="p-2.5 rounded-xl bg-emerald-100/70 text-emerald-950 text-xs space-y-1">
+                <span className="font-bold block">💡 Fast Chrome Tip:</span>
+                <p className="text-[11px] text-emerald-900 leading-relaxed">
+                  You can also tap Chrome&apos;s <strong>3 vertical dots (⋮)</strong> at the top right of your phone screen &rarr; select <strong>&quot;Install app&quot;</strong>.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* SECONDARY OPTION: Source Code for Developers */}
@@ -153,7 +208,7 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
         <div className="p-3 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-medium transition-colors"
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -162,3 +217,4 @@ export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({
     </div>
   );
 };
+

@@ -1243,6 +1243,7 @@ export default function App() {
         onClose={() => setShowApkModal(false)}
         onInstallPwa={handleInstallApp}
         isInstallable={!isInstalled}
+        deferredPrompt={deferredPrompt}
       />
 
       {/* Verification Wizard Modal */}
